@@ -1,19 +1,19 @@
-import * as THREE from 'three'
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls'
-import Player, { Mode } from '../player'
-import Terrain, { BlockType } from '../terrain'
+import * as THREE from "three";
+import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls";
+import Player, { Mode } from "../player";
+import Terrain, { BlockType } from "../terrain";
 
-import Block from '../terrain/mesh/block'
-import Noise from '../terrain/noise'
-import Audio from '../audio'
-import { isMobile } from '../utils'
+import Block from "../terrain/mesh/block";
+import Noise from "../terrain/noise";
+import Audio from "../audio";
+import { isMobile } from "../utils";
 enum Side {
   front,
   back,
   left,
   right,
   down,
-  up
+  up,
 }
 
 export default class Control {
@@ -24,63 +24,67 @@ export default class Control {
     terrain: Terrain,
     audio: Audio
   ) {
-    this.scene = scene
-    this.camera = camera
-    this.player = player
-    this.terrain = terrain
-    this.control = new PointerLockControls(camera, document.body)
-    this.audio = audio
+    this.scene = scene;
+    this.camera = camera;
+    this.player = player;
+    this.terrain = terrain;
+    this.control = new PointerLockControls(camera, document.body);
+    this.audio = audio;
 
-    this.raycaster = new THREE.Raycaster()
-    this.raycaster.far = 8
-    this.far = this.player.body.height
+    this.raycaster = new THREE.Raycaster();
+    this.raycaster.far = 8;
+    this.far = this.player.body.height;
 
-    this.initRayCaster()
-    this.initEventListeners()
+    this.initRayCaster();
+    this.initEventListeners();
   }
 
   // core properties
-  scene: THREE.Scene
-  camera: THREE.PerspectiveCamera
-  player: Player
-  terrain: Terrain
-  control: PointerLockControls
-  audio: Audio
-  velocity = new THREE.Vector3(0, 0, 0)
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  player: Player;
+  terrain: Terrain;
+  control: PointerLockControls;
+  audio: Audio;
+  velocity = new THREE.Vector3(0, 0, 0);
 
   // collide and jump properties
-  frontCollide = false
-  backCollide = false
-  leftCollide = false
-  rightCollide = false
-  downCollide = true
-  upCollide = false
-  isJumping = false
+  frontCollide = false;
+  backCollide = false;
+  leftCollide = false;
+  rightCollide = false;
+  downCollide = true;
+  upCollide = false;
+  isJumping = false;
 
-  raycasterDown = new THREE.Raycaster()
-  raycasterUp = new THREE.Raycaster()
-  raycasterFront = new THREE.Raycaster()
-  raycasterBack = new THREE.Raycaster()
-  raycasterRight = new THREE.Raycaster()
-  raycasterLeft = new THREE.Raycaster()
+  raycasterDown = new THREE.Raycaster();
+  raycasterUp = new THREE.Raycaster();
+  raycasterFront = new THREE.Raycaster();
+  raycasterBack = new THREE.Raycaster();
+  raycasterRight = new THREE.Raycaster();
+  raycasterLeft = new THREE.Raycaster();
 
-  tempMesh = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshBasicMaterial(),
-    100
-  )
+  tempMesh = (() => {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial(),
+      100
+    );
+    mesh.frustumCulled = false;
+    return mesh;
+  })();
   tempMeshMatrix = new THREE.InstancedBufferAttribute(
     new Float32Array(100 * 16),
     16
-  )
+  );
 
   // other properties
-  p1 = performance.now()
-  p2 = performance.now()
-  raycaster: THREE.Raycaster
-  far: number
+  p1 = performance.now();
+  p2 = performance.now();
+  raycaster: THREE.Raycaster;
+  far: number;
 
-  holdingBlock = BlockType.grass
+  holdingBlock = BlockType.grass;
   holdingBlocks = [
     BlockType.grass,
     BlockType.stone,
@@ -91,197 +95,197 @@ export default class Control {
     BlockType.glass,
     BlockType.grass,
     BlockType.grass,
-    BlockType.grass
-  ]
-  holdingIndex = 0
-  wheelGap = false
-  clickInterval?: ReturnType<typeof setInterval>
-  jumpInterval?: ReturnType<typeof setInterval>
-  mouseHolding = false
-  spaceHolding = false
+    BlockType.grass,
+  ];
+  holdingIndex = 0;
+  wheelGap = false;
+  clickInterval?: ReturnType<typeof setInterval>;
+  jumpInterval?: ReturnType<typeof setInterval>;
+  mouseHolding = false;
+  spaceHolding = false;
 
   initRayCaster = () => {
-    this.raycasterUp.ray.direction = new THREE.Vector3(0, 1, 0)
-    this.raycasterDown.ray.direction = new THREE.Vector3(0, -1, 0)
-    this.raycasterFront.ray.direction = new THREE.Vector3(1, 0, 0)
-    this.raycasterBack.ray.direction = new THREE.Vector3(-1, 0, 0)
-    this.raycasterLeft.ray.direction = new THREE.Vector3(0, 0, -1)
-    this.raycasterRight.ray.direction = new THREE.Vector3(0, 0, 1)
+    this.raycasterUp.ray.direction = new THREE.Vector3(0, 1, 0);
+    this.raycasterDown.ray.direction = new THREE.Vector3(0, -1, 0);
+    this.raycasterFront.ray.direction = new THREE.Vector3(1, 0, 0);
+    this.raycasterBack.ray.direction = new THREE.Vector3(-1, 0, 0);
+    this.raycasterLeft.ray.direction = new THREE.Vector3(0, 0, -1);
+    this.raycasterRight.ray.direction = new THREE.Vector3(0, 0, 1);
 
-    this.raycasterUp.far = 1.2
-    this.raycasterDown.far = this.player.body.height
-    this.raycasterFront.far = this.player.body.width
-    this.raycasterBack.far = this.player.body.width
-    this.raycasterLeft.far = this.player.body.width
-    this.raycasterRight.far = this.player.body.width
-  }
+    this.raycasterUp.far = 1.2;
+    this.raycasterDown.far = this.player.body.height;
+    this.raycasterFront.far = this.player.body.width;
+    this.raycasterBack.far = this.player.body.width;
+    this.raycasterLeft.far = this.player.body.width;
+    this.raycasterRight.far = this.player.body.width;
+  };
 
   downKeys = {
     a: false,
     d: false,
     w: false,
-    s: false
-  }
+    s: false,
+  };
   setMovementHandler = (e: KeyboardEvent) => {
     if (e.repeat) {
-      return
+      return;
     }
 
     switch (e.key) {
-      case 'q':
+      case "q":
         if (this.player.mode === Mode.walking) {
-          this.player.setMode(Mode.flying)
+          this.player.setMode(Mode.flying);
         } else {
-          this.player.setMode(Mode.walking)
+          this.player.setMode(Mode.walking);
         }
-        this.velocity.y = 0
-        this.velocity.x = 0
-        this.velocity.z = 0
-        break
-      case 'w':
-      case 'W':
-        this.downKeys.w = true
-        this.velocity.x = this.player.speed
-        break
-      case 's':
-      case 'S':
-        this.downKeys.s = true
-        this.velocity.x = -this.player.speed
-        break
-      case 'a':
-      case 'A':
-        this.downKeys.a = true
-        this.velocity.z = -this.player.speed
-        break
-      case 'd':
-      case 'D':
-        this.downKeys.d = true
-        this.velocity.z = this.player.speed
-        break
-      case ' ':
+        this.velocity.y = 0;
+        this.velocity.x = 0;
+        this.velocity.z = 0;
+        break;
+      case "w":
+      case "W":
+        this.downKeys.w = true;
+        this.velocity.x = this.player.speed;
+        break;
+      case "s":
+      case "S":
+        this.downKeys.s = true;
+        this.velocity.x = -this.player.speed;
+        break;
+      case "a":
+      case "A":
+        this.downKeys.a = true;
+        this.velocity.z = -this.player.speed;
+        break;
+      case "d":
+      case "D":
+        this.downKeys.d = true;
+        this.velocity.z = this.player.speed;
+        break;
+      case " ":
         if (this.player.mode === Mode.sneaking && !this.isJumping) {
-          return
+          return;
         }
         if (this.player.mode === Mode.walking) {
           // jump
           if (!this.isJumping) {
-            this.velocity.y = 8
-            this.isJumping = true
-            this.downCollide = false
-            this.far = 0
+            this.velocity.y = 8;
+            this.isJumping = true;
+            this.downCollide = false;
+            this.far = 0;
             setTimeout(() => {
-              this.far = this.player.body.height
-            }, 300)
+              this.far = this.player.body.height;
+            }, 300);
           }
         } else {
-          this.velocity.y += this.player.speed
+          this.velocity.y += this.player.speed;
         }
         if (this.player.mode === Mode.walking && !this.spaceHolding) {
-          this.spaceHolding = true
+          this.spaceHolding = true;
           this.jumpInterval = setInterval(() => {
-            this.setMovementHandler(e)
-          }, 10)
+            this.setMovementHandler(e);
+          }, 10);
         }
-        break
-      case 'Shift':
+        break;
+      case "Shift":
         if (this.player.mode === Mode.walking) {
           if (!this.isJumping) {
-            this.player.setMode(Mode.sneaking)
+            this.player.setMode(Mode.sneaking);
             if (this.downKeys.w) {
-              this.velocity.x = this.player.speed
+              this.velocity.x = this.player.speed;
             }
             if (this.downKeys.s) {
-              this.velocity.x = -this.player.speed
+              this.velocity.x = -this.player.speed;
             }
             if (this.downKeys.a) {
-              this.velocity.z = -this.player.speed
+              this.velocity.z = -this.player.speed;
             }
             if (this.downKeys.d) {
-              this.velocity.z = this.player.speed
+              this.velocity.z = this.player.speed;
             }
-            this.camera.position.setY(this.camera.position.y - 0.2)
+            this.camera.position.setY(this.camera.position.y - 0.2);
           }
         } else {
-          this.velocity.y -= this.player.speed
+          this.velocity.y -= this.player.speed;
         }
-        break
+        break;
       default:
-        break
+        break;
     }
-  }
+  };
 
   resetMovementHandler = (e: KeyboardEvent) => {
     if (e.repeat) {
-      return
+      return;
     }
 
     switch (e.key) {
-      case 'w':
-      case 'W':
-        this.downKeys.w = false
-        this.velocity.x = 0
-        break
-      case 's':
-      case 'S':
-        this.downKeys.s = false
-        this.velocity.x = 0
-        break
-      case 'a':
-      case 'A':
-        this.downKeys.a = false
-        this.velocity.z = 0
-        break
-      case 'd':
-      case 'D':
-        this.downKeys.d = false
-        this.velocity.z = 0
-        break
-      case ' ':
+      case "w":
+      case "W":
+        this.downKeys.w = false;
+        this.velocity.x = 0;
+        break;
+      case "s":
+      case "S":
+        this.downKeys.s = false;
+        this.velocity.x = 0;
+        break;
+      case "a":
+      case "A":
+        this.downKeys.a = false;
+        this.velocity.z = 0;
+        break;
+      case "d":
+      case "D":
+        this.downKeys.d = false;
+        this.velocity.z = 0;
+        break;
+      case " ":
         if (this.player.mode === Mode.sneaking && !this.isJumping) {
-          return
+          return;
         }
-        this.jumpInterval && clearInterval(this.jumpInterval)
-        this.spaceHolding = false
+        this.jumpInterval && clearInterval(this.jumpInterval);
+        this.spaceHolding = false;
         if (this.player.mode === Mode.walking) {
-          return
+          return;
         }
-        this.velocity.y = 0
-        break
-      case 'Shift':
+        this.velocity.y = 0;
+        break;
+      case "Shift":
         if (this.player.mode === Mode.sneaking) {
           if (!this.isJumping) {
-            this.player.setMode(Mode.walking)
+            this.player.setMode(Mode.walking);
             if (this.downKeys.w) {
-              this.velocity.x = this.player.speed
+              this.velocity.x = this.player.speed;
             }
             if (this.downKeys.s) {
-              this.velocity.x = -this.player.speed
+              this.velocity.x = -this.player.speed;
             }
             if (this.downKeys.a) {
-              this.velocity.z = -this.player.speed
+              this.velocity.z = -this.player.speed;
             }
             if (this.downKeys.d) {
-              this.velocity.z = this.player.speed
+              this.velocity.z = this.player.speed;
             }
-            this.camera.position.setY(this.camera.position.y + 0.2)
+            this.camera.position.setY(this.camera.position.y + 0.2);
           }
         }
         if (this.player.mode === Mode.walking) {
-          return
+          return;
         }
-        this.velocity.y = 0
-        break
+        this.velocity.y = 0;
+        break;
       default:
-        break
+        break;
     }
-  }
+  };
 
   mousedownHandler = (e: MouseEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     // let p1 = performance.now()
-    this.raycaster.setFromCamera({ x: 0, y: 0 }, this.camera)
-    const block = this.raycaster.intersectObjects(this.terrain.blocks)[0]
-    const matrix = new THREE.Matrix4()
+    this.raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+    const block = this.raycaster.intersectObjects(this.terrain.blocks)[0];
+    const matrix = new THREE.Matrix4();
 
     switch (e.button) {
       // left click to remove block
@@ -289,16 +293,16 @@ export default class Control {
         {
           if (block && block.object instanceof THREE.InstancedMesh) {
             // calculate position
-            block.object.getMatrixAt(block.instanceId!, matrix)
-            const position = new THREE.Vector3().setFromMatrixPosition(matrix)
+            block.object.getMatrixAt(block.instanceId!, matrix);
+            const position = new THREE.Vector3().setFromMatrixPosition(matrix);
 
             // don't remove bedrock
             if (
               (BlockType[block.object.name as any] as unknown as BlockType) ===
               BlockType.bedrock
             ) {
-              this.terrain.generateAdjacentBlocks(position)
-              return
+              this.terrain.generateAdjacentBlocks(position);
+              return;
             }
 
             // remove the block
@@ -322,12 +326,12 @@ export default class Control {
                 0,
                 0
               )
-            )
+            );
 
             // block and sound effect
             this.audio.playSound(
               BlockType[block.object.name as any] as unknown as BlockType
-            )
+            );
 
             const mesh = new THREE.Mesh(
               new THREE.BoxGeometry(1, 1, 1),
@@ -336,35 +340,35 @@ export default class Control {
                   parseInt(BlockType[block.object.name as any])
                 ]
               )
-            )
-            mesh.position.set(position.x, position.y, position.z)
-            this.scene.add(mesh)
-            const time = performance.now()
-            let raf = 0
+            );
+            mesh.position.set(position.x, position.y, position.z);
+            this.scene.add(mesh);
+            const time = performance.now();
+            let raf = 0;
             const animate = () => {
               if (performance.now() - time > 250) {
-                this.scene.remove(mesh)
-                cancelAnimationFrame(raf)
-                return
+                this.scene.remove(mesh);
+                cancelAnimationFrame(raf);
+                return;
               }
-              raf = requestAnimationFrame(animate)
-              mesh.geometry.scale(0.85, 0.85, 0.85)
-            }
-            animate()
+              raf = requestAnimationFrame(animate);
+              mesh.geometry.scale(0.85, 0.85, 0.85);
+            };
+            animate();
 
             // update
-            block.object.instanceMatrix.needsUpdate = true
+            block.object.instanceMatrix.needsUpdate = true;
 
             // check existence
-            let existed = false
+            let existed = false;
             for (const customBlock of this.terrain.customBlocks) {
               if (
                 customBlock.x === position.x &&
                 customBlock.y === position.y &&
                 customBlock.z === position.z
               ) {
-                existed = true
-                customBlock.placed = false
+                existed = true;
+                customBlock.placed = false;
               }
             }
 
@@ -378,23 +382,23 @@ export default class Control {
                   BlockType[block.object.name as any] as unknown as BlockType,
                   false
                 )
-              )
+              );
             }
 
             // generate adjacent blocks
-            this.terrain.generateAdjacentBlocks(position)
+            this.terrain.generateAdjacentBlocks(position);
           }
         }
-        break
+        break;
 
       // right click to put block
       case 2:
         {
           if (block && block.object instanceof THREE.InstancedMesh) {
             // calculate normal and position
-            const normal = block.face!.normal
-            block.object.getMatrixAt(block.instanceId!, matrix)
-            const position = new THREE.Vector3().setFromMatrixPosition(matrix)
+            const normal = block.face!.normal;
+            block.object.getMatrixAt(block.instanceId!, matrix);
+            const position = new THREE.Vector3().setFromMatrixPosition(matrix);
 
             // return when block overlaps with player
             if (
@@ -404,7 +408,7 @@ export default class Control {
                 position.y + normal.y ===
                   Math.round(this.camera.position.y - 1))
             ) {
-              return
+              return;
             }
 
             // put the block
@@ -412,19 +416,19 @@ export default class Control {
               normal.x + position.x,
               normal.y + position.y,
               normal.z + position.z
-            )
+            );
             this.terrain.blocks[this.holdingBlock].setMatrixAt(
               this.terrain.getCount(this.holdingBlock),
               matrix
-            )
-            this.terrain.setCount(this.holdingBlock)
+            );
+            this.terrain.setCount(this.holdingBlock);
 
             //sound effect
-            this.audio.playSound(this.holdingBlock)
+            this.audio.playSound(this.holdingBlock);
 
             // update
             this.terrain.blocks[this.holdingBlock].instanceMatrix.needsUpdate =
-              true
+              true;
 
             // add to custom blocks
             this.terrain.customBlocks.push(
@@ -435,94 +439,95 @@ export default class Control {
                 this.holdingBlock,
                 true
               )
-            )
+            );
           }
         }
-        break
+        break;
       default:
-        break
+        break;
     }
 
     if (!isMobile && !this.mouseHolding) {
-      this.mouseHolding = true
+      this.mouseHolding = true;
       this.clickInterval = setInterval(() => {
-        this.mousedownHandler(e)
-      }, 333)
+        this.mousedownHandler(e);
+      }, 333);
     }
 
     // console.log(performance.now() - p1)
-  }
+  };
   mouseupHandler = () => {
-    this.clickInterval && clearInterval(this.clickInterval)
-    this.mouseHolding = false
-  }
+    this.clickInterval && clearInterval(this.clickInterval);
+    this.mouseHolding = false;
+  };
 
   changeHoldingBlockHandler = (e: KeyboardEvent) => {
-    if (isNaN(parseInt(e.key)) || e.key === '0') {
-      return
+    if (isNaN(parseInt(e.key)) || e.key === "0") {
+      return;
     }
-    this.holdingIndex = parseInt(e.key) - 1
+    this.holdingIndex = parseInt(e.key) - 1;
 
-    this.holdingBlock = this.holdingBlocks[this.holdingIndex] ?? BlockType.grass
-  }
+    this.holdingBlock =
+      this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
+  };
 
   wheelHandler = (e: WheelEvent) => {
     if (!this.wheelGap) {
-      this.wheelGap = true
+      this.wheelGap = true;
       setTimeout(() => {
-        this.wheelGap = false
-      }, 100)
+        this.wheelGap = false;
+      }, 100);
       if (e.deltaY > 0) {
-        this.holdingIndex++
-        this.holdingIndex > 9 && (this.holdingIndex = 0)
+        this.holdingIndex++;
+        this.holdingIndex > 9 && (this.holdingIndex = 0);
       } else if (e.deltaY < 0) {
-        this.holdingIndex--
-        this.holdingIndex < 0 && (this.holdingIndex = 9)
+        this.holdingIndex--;
+        this.holdingIndex < 0 && (this.holdingIndex = 9);
       }
       this.holdingBlock =
-        this.holdingBlocks[this.holdingIndex] ?? BlockType.grass
+        this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
     }
-  }
+  };
 
   initEventListeners = () => {
     // add / remove handler when pointer lock / unlock
-    document.addEventListener('pointerlockchange', () => {
+    document.addEventListener("pointerlockchange", () => {
       if (document.pointerLockElement) {
         document.body.addEventListener(
-          'keydown',
+          "keydown",
           this.changeHoldingBlockHandler
-        )
-        document.body.addEventListener('wheel', this.wheelHandler)
-        document.body.addEventListener('keydown', this.setMovementHandler)
-        document.body.addEventListener('keyup', this.resetMovementHandler)
-        document.body.addEventListener('mousedown', this.mousedownHandler)
-        document.body.addEventListener('mouseup', this.mouseupHandler)
+        );
+        document.body.addEventListener("wheel", this.wheelHandler);
+        document.body.addEventListener("keydown", this.setMovementHandler);
+        document.body.addEventListener("keyup", this.resetMovementHandler);
+        document.body.addEventListener("mousedown", this.mousedownHandler);
+        document.body.addEventListener("mouseup", this.mouseupHandler);
       } else {
         document.body.removeEventListener(
-          'keydown',
+          "keydown",
           this.changeHoldingBlockHandler
-        )
-        document.body.removeEventListener('wheel', this.wheelHandler)
-        document.body.removeEventListener('keydown', this.setMovementHandler)
-        document.body.removeEventListener('keyup', this.resetMovementHandler)
-        document.body.removeEventListener('mousedown', this.mousedownHandler)
-        document.body.removeEventListener('mouseup', this.mouseupHandler)
-        this.velocity = new THREE.Vector3(0, 0, 0)
+        );
+        document.body.removeEventListener("wheel", this.wheelHandler);
+        document.body.removeEventListener("keydown", this.setMovementHandler);
+        document.body.removeEventListener("keyup", this.resetMovementHandler);
+        document.body.removeEventListener("mousedown", this.mousedownHandler);
+        document.body.removeEventListener("mouseup", this.mouseupHandler);
+        this.velocity = new THREE.Vector3(0, 0, 0);
       }
-    })
-  }
+    });
+  };
 
   // move along X with direction factor
   moveX(distance: number, delta: number) {
     this.camera.position.x +=
-      distance * (this.player.speed / Math.PI) * 2 * delta
+      distance * (this.player.speed / Math.PI) * 2 * delta;
   }
 
   // move along Z with direction factor
   moveZ = (distance: number, delta: number) => {
     this.camera.position.z +=
-      distance * (this.player.speed / Math.PI) * 2 * delta
-  }
+      distance * (this.player.speed / Math.PI) * 2 * delta;
+  };
 
   // collide checking
   collideCheckAll = (
@@ -531,13 +536,13 @@ export default class Control {
     customBlocks: Block[],
     far: number
   ) => {
-    this.collideCheck(Side.down, position, noise, customBlocks, far)
-    this.collideCheck(Side.front, position, noise, customBlocks)
-    this.collideCheck(Side.back, position, noise, customBlocks)
-    this.collideCheck(Side.left, position, noise, customBlocks)
-    this.collideCheck(Side.right, position, noise, customBlocks)
-    this.collideCheck(Side.up, position, noise, customBlocks)
-  }
+    this.collideCheck(Side.down, position, noise, customBlocks, far);
+    this.collideCheck(Side.front, position, noise, customBlocks);
+    this.collideCheck(Side.back, position, noise, customBlocks);
+    this.collideCheck(Side.left, position, noise, customBlocks);
+    this.collideCheck(Side.right, position, noise, customBlocks);
+    this.collideCheck(Side.up, position, noise, customBlocks);
+  };
 
   collideCheck = (
     side: Side,
@@ -546,71 +551,72 @@ export default class Control {
     customBlocks: Block[],
     far: number = this.player.body.width
   ) => {
-    const matrix = new THREE.Matrix4()
+    const matrix = new THREE.Matrix4();
 
     //reset simulation blocks
-    let index = 0
+    let index = 0;
     this.tempMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
       new Float32Array(100 * 16),
       16
-    )
+    );
+    this.tempMesh.count = 0;
 
     // block to remove
-    let removed = false
+    let removed = false;
     let treeRemoved = new Array<boolean>(
       this.terrain.noise.treeHeight + 1
-    ).fill(false)
+    ).fill(false);
 
     // get block position
-    let x = Math.round(position.x)
-    let z = Math.round(position.z)
+    let x = Math.round(position.x);
+    let z = Math.round(position.z);
 
     switch (side) {
       case Side.front:
-        x++
-        this.raycasterFront.ray.origin = position
-        break
+        x++;
+        this.raycasterFront.ray.origin = position;
+        break;
       case Side.back:
-        x--
-        this.raycasterBack.ray.origin = position
-        break
+        x--;
+        this.raycasterBack.ray.origin = position;
+        break;
       case Side.left:
-        z--
-        this.raycasterLeft.ray.origin = position
-        break
+        z--;
+        this.raycasterLeft.ray.origin = position;
+        break;
       case Side.right:
-        z++
-        this.raycasterRight.ray.origin = position
-        break
+        z++;
+        this.raycasterRight.ray.origin = position;
+        break;
       case Side.down:
-        this.raycasterDown.ray.origin = position
-        this.raycasterDown.far = far
-        break
+        this.raycasterDown.ray.origin = position;
+        this.raycasterDown.far = far;
+        break;
       case Side.up:
-        this.raycasterUp.ray.origin = new THREE.Vector3().copy(position)
-        this.raycasterUp.ray.origin.y--
-        break
+        this.raycasterUp.ray.origin = new THREE.Vector3().copy(position);
+        this.raycasterUp.ray.origin.y--;
+        break;
     }
 
     let y =
       Math.floor(
         noise.get(x / noise.gap, z / noise.gap, noise.seed) * noise.amp
-      ) + 30
+      ) + 30;
 
     // check custom blocks
     for (const block of customBlocks) {
       if (block.x === x && block.z === z) {
         if (block.placed) {
           // placed blocks
-          matrix.setPosition(block.x, block.y, block.z)
-          this.tempMesh.setMatrixAt(index++, matrix)
+          matrix.setPosition(block.x, block.y, block.z);
+          this.tempMesh.setMatrixAt(index++, matrix);
         } else if (block.y === y) {
           // removed blocks
-          removed = true
+          removed = true;
         } else {
           for (let i = 1; i <= this.terrain.noise.treeHeight; i++) {
             if (block.y === y + i) {
-              treeRemoved[i] = true
+              treeRemoved[i] = true;
             }
           }
         }
@@ -619,26 +625,26 @@ export default class Control {
 
     // update simulation blocks (ignore removed blocks)
     if (!removed) {
-      matrix.setPosition(x, y, z)
-      this.tempMesh.setMatrixAt(index++, matrix)
+      matrix.setPosition(x, y, z);
+      this.tempMesh.setMatrixAt(index++, matrix);
     }
     for (let i = 1; i <= this.terrain.noise.treeHeight; i++) {
       if (!treeRemoved[i]) {
         let treeOffset =
           noise.get(x / noise.treeGap, z / noise.treeGap, noise.treeSeed) *
-          noise.treeAmp
+          noise.treeAmp;
 
         let stoneOffset =
           noise.get(x / noise.stoneGap, z / noise.stoneGap, noise.stoneSeed) *
-          noise.stoneAmp
+          noise.stoneAmp;
 
         if (
           treeOffset > noise.treeThreshold &&
           y >= 27 &&
           stoneOffset < noise.stoneThreshold
         ) {
-          matrix.setPosition(x, y + i, z)
-          this.tempMesh.setMatrixAt(index++, matrix)
+          matrix.setPosition(x, y + i, z);
+          this.tempMesh.setMatrixAt(index++, matrix);
         }
       }
     }
@@ -650,66 +656,69 @@ export default class Control {
       side !== Side.down &&
       side !== Side.up
     ) {
-      matrix.setPosition(x, Math.floor(this.camera.position.y - 1), z)
-      this.tempMesh.setMatrixAt(index++, matrix)
+      matrix.setPosition(x, Math.floor(this.camera.position.y - 1), z);
+      this.tempMesh.setMatrixAt(index++, matrix);
     }
-    this.tempMesh.instanceMatrix.needsUpdate = true
+    this.tempMesh.count = index;
+    this.tempMesh.instanceMatrix.needsUpdate = true;
+    // Compute bounding sphere for raycasting to work properly
+    this.tempMesh.computeBoundingSphere();
 
     // update collide
-    const origin = new THREE.Vector3(position.x, position.y - 1, position.z)
+    const origin = new THREE.Vector3(position.x, position.y - 1, position.z);
     switch (side) {
       case Side.front: {
-        const c1 = this.raycasterFront.intersectObject(this.tempMesh).length
-        this.raycasterFront.ray.origin = origin
-        const c2 = this.raycasterFront.intersectObject(this.tempMesh).length
-        c1 || c2 ? (this.frontCollide = true) : (this.frontCollide = false)
+        const c1 = this.raycasterFront.intersectObject(this.tempMesh).length;
+        this.raycasterFront.ray.origin = origin;
+        const c2 = this.raycasterFront.intersectObject(this.tempMesh).length;
+        c1 || c2 ? (this.frontCollide = true) : (this.frontCollide = false);
 
-        break
+        break;
       }
       case Side.back: {
-        const c1 = this.raycasterBack.intersectObject(this.tempMesh).length
-        this.raycasterBack.ray.origin = origin
-        const c2 = this.raycasterBack.intersectObject(this.tempMesh).length
-        c1 || c2 ? (this.backCollide = true) : (this.backCollide = false)
-        break
+        const c1 = this.raycasterBack.intersectObject(this.tempMesh).length;
+        this.raycasterBack.ray.origin = origin;
+        const c2 = this.raycasterBack.intersectObject(this.tempMesh).length;
+        c1 || c2 ? (this.backCollide = true) : (this.backCollide = false);
+        break;
       }
       case Side.left: {
-        const c1 = this.raycasterLeft.intersectObject(this.tempMesh).length
-        this.raycasterLeft.ray.origin = origin
-        const c2 = this.raycasterLeft.intersectObject(this.tempMesh).length
-        c1 || c2 ? (this.leftCollide = true) : (this.leftCollide = false)
-        break
+        const c1 = this.raycasterLeft.intersectObject(this.tempMesh).length;
+        this.raycasterLeft.ray.origin = origin;
+        const c2 = this.raycasterLeft.intersectObject(this.tempMesh).length;
+        c1 || c2 ? (this.leftCollide = true) : (this.leftCollide = false);
+        break;
       }
       case Side.right: {
-        const c1 = this.raycasterRight.intersectObject(this.tempMesh).length
-        this.raycasterRight.ray.origin = origin
-        const c2 = this.raycasterRight.intersectObject(this.tempMesh).length
-        c1 || c2 ? (this.rightCollide = true) : (this.rightCollide = false)
-        break
+        const c1 = this.raycasterRight.intersectObject(this.tempMesh).length;
+        this.raycasterRight.ray.origin = origin;
+        const c2 = this.raycasterRight.intersectObject(this.tempMesh).length;
+        c1 || c2 ? (this.rightCollide = true) : (this.rightCollide = false);
+        break;
       }
       case Side.down: {
-        const c1 = this.raycasterDown.intersectObject(this.tempMesh).length
-        c1 ? (this.downCollide = true) : (this.downCollide = false)
-        break
+        const c1 = this.raycasterDown.intersectObject(this.tempMesh).length;
+        c1 ? (this.downCollide = true) : (this.downCollide = false);
+        break;
       }
       case Side.up: {
-        const c1 = this.raycasterUp.intersectObject(this.tempMesh).length
-        c1 ? (this.upCollide = true) : (this.upCollide = false)
-        break
+        const c1 = this.raycasterUp.intersectObject(this.tempMesh).length;
+        c1 ? (this.upCollide = true) : (this.upCollide = false);
+        break;
       }
     }
-  }
+  };
 
   update = () => {
-    this.p1 = performance.now()
-    const delta = (this.p1 - this.p2) / 1000
+    this.p1 = performance.now();
+    const delta = (this.p1 - this.p2) / 1000;
     if (
       // dev mode
       this.player.mode === Mode.flying
     ) {
-      this.control.moveForward(this.velocity.x * delta)
-      this.control.moveRight(this.velocity.z * delta)
-      this.camera.position.y += this.velocity.y * delta
+      this.control.moveForward(this.velocity.x * delta);
+      this.control.moveRight(this.velocity.z * delta);
+      this.camera.position.y += this.velocity.y * delta;
     } else {
       // normal mode
       this.collideCheckAll(
@@ -717,31 +726,31 @@ export default class Control {
         this.terrain.noise,
         this.terrain.customBlocks,
         this.far - this.velocity.y * delta
-      )
+      );
 
       // gravity
       if (Math.abs(this.velocity.y) < this.player.falling) {
-        this.velocity.y -= 25 * delta
+        this.velocity.y -= 25 * delta;
       }
 
       // up collide handler
       if (this.upCollide) {
-        this.velocity.y = -225 * delta
-        this.far = this.player.body.height
+        this.velocity.y = -225 * delta;
+        this.far = this.player.body.height;
       }
 
       // down collide and jump handler
       if (this.downCollide && !this.isJumping) {
-        this.velocity.y = 0
+        this.velocity.y = 0;
       } else if (this.downCollide && this.isJumping) {
-        this.isJumping = false
+        this.isJumping = false;
       }
 
       // side collide handler
       let vector = new THREE.Vector3(0, 0, -1).applyQuaternion(
         this.camera.quaternion
-      )
-      let direction = Math.atan2(vector.x, vector.z)
+      );
+      let direction = Math.atan2(vector.x, vector.z);
       if (
         this.frontCollide ||
         this.backCollide ||
@@ -756,14 +765,14 @@ export default class Control {
               (!this.leftCollide && direction > Math.PI / 2) ||
               (!this.rightCollide && direction < Math.PI / 2)
             ) {
-              this.moveZ(Math.PI / 2 - direction, delta)
+              this.moveZ(Math.PI / 2 - direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera back
@@ -772,14 +781,14 @@ export default class Control {
               (!this.leftCollide && direction > -Math.PI / 2) ||
               (!this.rightCollide && direction < -Math.PI / 2)
             ) {
-              this.moveZ(-Math.PI / 2 - direction, delta)
+              this.moveZ(-Math.PI / 2 - direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera left
@@ -792,14 +801,14 @@ export default class Control {
               (!this.rightCollide && direction < 0) ||
               (!this.leftCollide && direction > 0)
             ) {
-              this.moveZ(-direction, delta)
+              this.moveZ(-direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
 
           // camera right
@@ -808,17 +817,17 @@ export default class Control {
             this.velocity.z > 0
           ) {
             if (!this.rightCollide && direction > 0) {
-              this.moveZ(Math.PI - direction, delta)
+              this.moveZ(Math.PI - direction, delta);
             }
             if (!this.leftCollide && direction < 0) {
-              this.moveZ(-Math.PI - direction, delta)
+              this.moveZ(-Math.PI - direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
         }
 
@@ -830,14 +839,14 @@ export default class Control {
               (!this.leftCollide && direction < -Math.PI / 2) ||
               (!this.rightCollide && direction > -Math.PI / 2)
             ) {
-              this.moveZ(Math.PI / 2 + direction, delta)
+              this.moveZ(Math.PI / 2 + direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera back
@@ -846,14 +855,14 @@ export default class Control {
               (!this.leftCollide && direction < Math.PI / 2) ||
               (!this.rightCollide && direction > Math.PI / 2)
             ) {
-              this.moveZ(direction - Math.PI / 2, delta)
+              this.moveZ(direction - Math.PI / 2, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera left
@@ -862,17 +871,17 @@ export default class Control {
             this.velocity.z < 0
           ) {
             if (!this.leftCollide && direction > 0) {
-              this.moveZ(-Math.PI + direction, delta)
+              this.moveZ(-Math.PI + direction, delta);
             }
             if (!this.rightCollide && direction < 0) {
-              this.moveZ(Math.PI + direction, delta)
+              this.moveZ(Math.PI + direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
 
           // camera right
@@ -885,14 +894,14 @@ export default class Control {
               (!this.leftCollide && direction < 0) ||
               (!this.rightCollide && direction > 0)
             ) {
-              this.moveZ(direction, delta)
+              this.moveZ(direction, delta);
             }
           } else if (
             !this.leftCollide &&
             !this.rightCollide &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
         }
 
@@ -904,31 +913,31 @@ export default class Control {
             this.velocity.x > 0
           ) {
             if (!this.frontCollide && direction > 0) {
-              this.moveX(Math.PI - direction, delta)
+              this.moveX(Math.PI - direction, delta);
             }
             if (!this.backCollide && direction < 0) {
-              this.moveX(-Math.PI - direction, delta)
+              this.moveX(-Math.PI - direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.frontCollide &&
             direction < 0 &&
             direction > -Math.PI / 2 &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.backCollide &&
             direction < Math.PI / 2 &&
             direction > 0 &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera back
@@ -941,28 +950,28 @@ export default class Control {
               (!this.frontCollide && direction < 0) ||
               (!this.backCollide && direction > 0)
             ) {
-              this.moveX(-direction, delta)
+              this.moveX(-direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.frontCollide &&
             direction < Math.PI &&
             direction > Math.PI / 2 &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.backCollide &&
             direction > -Math.PI &&
             direction < -Math.PI / 2 &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera left
@@ -971,28 +980,28 @@ export default class Control {
               (!this.backCollide && direction > Math.PI / 2) ||
               (!this.frontCollide && direction < Math.PI / 2)
             ) {
-              this.moveX(Math.PI / 2 - direction, delta)
+              this.moveX(Math.PI / 2 - direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.frontCollide &&
             direction > -Math.PI &&
             direction < -Math.PI / 2 &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.backCollide &&
             direction > -Math.PI / 2 &&
             direction < 0 &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
 
           // camera right
@@ -1001,28 +1010,28 @@ export default class Control {
               (!this.backCollide && direction > -Math.PI / 2) ||
               (!this.frontCollide && direction < -Math.PI / 2)
             ) {
-              this.moveX(-Math.PI / 2 - direction, delta)
+              this.moveX(-Math.PI / 2 - direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.frontCollide &&
             direction < Math.PI / 2 &&
             direction > 0 &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.backCollide &&
             direction < Math.PI &&
             direction > Math.PI / 2 &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
         }
 
@@ -1038,28 +1047,28 @@ export default class Control {
               (!this.backCollide && direction < 0) ||
               (!this.frontCollide && direction > 0)
             ) {
-              this.moveX(direction, delta)
+              this.moveX(direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.frontCollide &&
             direction < -Math.PI / 2 &&
             direction > -Math.PI &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.backCollide &&
             direction < Math.PI &&
             direction > Math.PI / 2 &&
             this.velocity.x > 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera back
@@ -1068,31 +1077,31 @@ export default class Control {
             this.velocity.x < 0
           ) {
             if (!this.backCollide && direction > 0) {
-              this.moveX(-Math.PI + direction, delta)
+              this.moveX(-Math.PI + direction, delta);
             }
             if (!this.frontCollide && direction < 0) {
-              this.moveX(Math.PI + direction, delta)
+              this.moveX(Math.PI + direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.frontCollide &&
             direction < Math.PI / 2 &&
             direction > 0 &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           } else if (
             this.backCollide &&
             direction < 0 &&
             direction > -Math.PI / 2 &&
             this.velocity.x < 0
           ) {
-            this.control.moveForward(this.velocity.x * delta)
+            this.control.moveForward(this.velocity.x * delta);
           }
 
           // camera left
@@ -1101,28 +1110,28 @@ export default class Control {
               (!this.frontCollide && direction > -Math.PI / 2) ||
               (!this.backCollide && direction < -Math.PI / 2)
             ) {
-              this.moveX(Math.PI / 2 + direction, delta)
+              this.moveX(Math.PI / 2 + direction, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.frontCollide &&
             direction > Math.PI / 2 &&
             direction < Math.PI &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.backCollide &&
             direction > 0 &&
             direction < Math.PI / 2 &&
             this.velocity.z < 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
 
           // camera right
@@ -1131,43 +1140,43 @@ export default class Control {
               (!this.frontCollide && direction > Math.PI / 2) ||
               (!this.backCollide && direction < Math.PI / 2)
             ) {
-              this.moveX(direction - Math.PI / 2, delta)
+              this.moveX(direction - Math.PI / 2, delta);
             }
           } else if (
             !this.frontCollide &&
             !this.backCollide &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.frontCollide &&
             direction > -Math.PI / 2 &&
             direction < 0 &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           } else if (
             this.backCollide &&
             direction > -Math.PI &&
             direction < -Math.PI / 2 &&
             this.velocity.z > 0
           ) {
-            this.control.moveRight(this.velocity.z * delta)
+            this.control.moveRight(this.velocity.z * delta);
           }
         }
       } else {
         // no collide
-        this.control.moveForward(this.velocity.x * delta)
-        this.control.moveRight(this.velocity.z * delta)
+        this.control.moveForward(this.velocity.x * delta);
+        this.control.moveRight(this.velocity.z * delta);
       }
 
-      this.camera.position.y += this.velocity.y * delta
+      this.camera.position.y += this.velocity.y * delta;
 
       // catching net
       if (this.camera.position.y < -100) {
-        this.camera.position.y = 60
+        this.camera.position.y = 60;
       }
     }
-    this.p2 = this.p1
-  }
+    this.p2 = this.p1;
+  };
 }

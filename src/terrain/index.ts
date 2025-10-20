@@ -1,10 +1,10 @@
-import * as THREE from 'three'
-import Materials, { MaterialType } from './mesh/materials'
-import Block from './mesh/block'
-import Highlight from './highlight'
-import Noise from './noise'
+import * as THREE from "three";
+import Materials, { MaterialType } from "./mesh/materials";
+import Block from "./mesh/block";
+import Highlight from "./highlight";
+import Noise from "./noise";
 
-import Generate from './worker/generate?worker'
+import Generate from "./worker/generate?worker";
 
 export enum BlockType {
   grass = 0,
@@ -18,55 +18,59 @@ export enum BlockType {
   diamond = 8,
   quartz = 9,
   glass = 10,
-  bedrock = 11
+  bedrock = 11,
 }
 export default class Terrain {
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
-    this.scene = scene
-    this.camera = camera
+    this.scene = scene;
+    this.camera = camera;
     this.maxCount =
-      (this.distance * this.chunkSize * 2 + this.chunkSize) ** 2 + 500
-    this.highlight = new Highlight(scene, camera, this)
-    this.scene.add(this.cloud)
+      (this.distance * this.chunkSize * 2 + this.chunkSize) ** 2 + 500;
+    this.highlight = new Highlight(scene, camera, this);
+    this.scene.add(this.cloud);
 
     // generate worker callback handler
     this.generateWorker.onmessage = (
       msg: MessageEvent<{
-        idMap: Map<string, number>
-        arrays: ArrayLike<number>[]
-        blocksCount: number[]
+        idMap: Map<string, number>;
+        arrays: ArrayLike<number>[];
+        blocksCount: number[];
       }>
     ) => {
-      this.resetBlocks()
-      this.idMap = msg.data.idMap
-      this.blocksCount = msg.data.blocksCount
+      this.resetBlocks();
+      this.idMap = msg.data.idMap;
+      this.blocksCount = msg.data.blocksCount;
 
       for (let i = 0; i < msg.data.arrays.length; i++) {
         this.blocks[i].instanceMatrix = new THREE.InstancedBufferAttribute(
           (this.blocks[i].instanceMatrix.array = msg.data.arrays[i]),
           16
-        )
+        );
+        // Set the instance count for raycasting to work properly
+        this.blocks[i].count = this.blocksCount[i];
       }
 
       for (const block of this.blocks) {
-        block.instanceMatrix.needsUpdate = true
+        block.instanceMatrix.needsUpdate = true;
+        // Compute bounding sphere for raycasting to work
+        block.computeBoundingSphere();
       }
-    }
+    };
   }
   // core properties
-  scene: THREE.Scene
-  camera: THREE.PerspectiveCamera
-  distance = 3
-  chunkSize = 24
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  distance = 3;
+  chunkSize = 24;
 
   // terrain properties
-  maxCount: number
-  chunk = new THREE.Vector2(0, 0)
-  previousChunk = new THREE.Vector2(0, 0)
-  noise = new Noise()
+  maxCount: number;
+  chunk = new THREE.Vector2(0, 0);
+  previousChunk = new THREE.Vector2(0, 0);
+  noise = new Noise();
 
   // materials
-  materials = new Materials()
+  materials = new Materials();
   materialType = [
     MaterialType.grass,
     MaterialType.sand,
@@ -79,64 +83,73 @@ export default class Terrain {
     MaterialType.diamond,
     MaterialType.quartz,
     MaterialType.glass,
-    MaterialType.bedrock
-  ]
+    MaterialType.bedrock,
+  ];
 
   // other properties
-  blocks: THREE.InstancedMesh[] = []
-  blocksCount: number[] = []
-  blocksFactor = [1, 0.2, 0.1, 0.7, 0.1, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+  blocks: THREE.InstancedMesh[] = [];
+  blocksCount: number[] = [];
+  blocksFactor = [1, 0.2, 0.1, 0.7, 0.1, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
 
-  customBlocks: Block[] = []
-  highlight: Highlight
+  customBlocks: Block[] = [];
+  highlight: Highlight;
 
-  idMap = new Map<string, number>()
-  generateWorker = new Generate()
+  idMap = new Map<string, number>();
+  generateWorker = new Generate();
 
   // cloud
-  cloud = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(20, 5, 14),
-    new THREE.MeshStandardMaterial({
-      transparent: true,
-      color: 0xffffff,
-      opacity: 0.4
-    }),
-    1000
-  )
-  cloudCount = 0
-  cloudGap = 5
+  cloud = (() => {
+    const cloudMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(20, 5, 14),
+      new THREE.MeshStandardMaterial({
+        transparent: true,
+        color: 0xffffff,
+        opacity: 0.4,
+      }),
+      1000
+    );
+    cloudMesh.frustumCulled = false;
+    return cloudMesh;
+  })();
+  cloudCount = 0;
+  cloudGap = 5;
 
   getCount = (type: BlockType) => {
-    return this.blocksCount[type]
-  }
+    return this.blocksCount[type];
+  };
 
   setCount = (type: BlockType) => {
-    this.blocksCount[type] = this.blocksCount[type] + 1
-  }
+    this.blocksCount[type] = this.blocksCount[type] + 1;
+    // Update the instance count for raycasting to work properly
+    this.blocks[type].count = this.blocksCount[type];
+    this.blocks[type].computeBoundingSphere();
+  };
 
   initBlocks = () => {
     // reset
     for (const block of this.blocks) {
-      this.scene.remove(block)
+      this.scene.remove(block);
     }
-    this.blocks = []
+    this.blocks = [];
 
     // create instance meshes
-    const geometry = new THREE.BoxGeometry()
+    const geometry = new THREE.BoxGeometry();
 
     for (let i = 0; i < this.materialType.length; i++) {
       let block = new THREE.InstancedMesh(
         geometry,
         this.materials.get(this.materialType[i]),
         this.maxCount * this.blocksFactor[i]
-      )
-      block.name = BlockType[i]
-      this.blocks.push(block)
-      this.scene.add(block)
+      );
+      block.name = BlockType[i];
+      // Disable frustum culling for instanced meshes with dynamic instances
+      block.frustumCulled = false;
+      this.blocks.push(block);
+      this.scene.add(block);
     }
 
-    this.blocksCount = new Array(this.materialType.length).fill(0)
-  }
+    this.blocksCount = new Array(this.materialType.length).fill(0);
+  };
 
   resetBlocks = () => {
     // reest count and instance matrix
@@ -144,12 +157,12 @@ export default class Terrain {
       this.blocks[i].instanceMatrix = new THREE.InstancedBufferAttribute(
         new Float32Array(this.maxCount * this.blocksFactor[i] * 16),
         16
-      )
+      );
     }
-  }
+  };
 
   generate = () => {
-    this.blocksCount = new Array(this.blocks.length).fill(0)
+    this.blocksCount = new Array(this.blocks.length).fill(0);
     // post work to generate worker
     this.generateWorker.postMessage({
       distance: this.distance,
@@ -162,18 +175,18 @@ export default class Terrain {
       blocksFactor: this.blocksFactor,
       blocksCount: this.blocksCount,
       customBlocks: this.customBlocks,
-      chunkSize: this.chunkSize
-    })
+      chunkSize: this.chunkSize,
+    });
 
     // cloud
 
     if (this.cloudGap++ > 5) {
-      this.cloudGap = 0
+      this.cloudGap = 0;
       this.cloud.instanceMatrix = new THREE.InstancedBufferAttribute(
         new Float32Array(1000 * 16),
         16
-      )
-      this.cloudCount = 0
+      );
+      this.cloudCount = 0;
       for (
         let x =
           -this.chunkSize * this.distance * 3 + this.chunkSize * this.chunk.x;
@@ -192,68 +205,69 @@ export default class Terrain {
             this.chunkSize * this.chunk.y;
           z += 20
         ) {
-          const matrix = new THREE.Matrix4()
-          matrix.setPosition(x, 80 + (Math.random() - 0.5) * 30, z)
+          const matrix = new THREE.Matrix4();
+          matrix.setPosition(x, 80 + (Math.random() - 0.5) * 30, z);
 
           if (Math.random() > 0.8) {
-            this.cloud.setMatrixAt(this.cloudCount++, matrix)
+            this.cloud.setMatrixAt(this.cloudCount++, matrix);
           }
         }
       }
-      this.cloud.instanceMatrix.needsUpdate = true
+      this.cloud.count = this.cloudCount;
+      this.cloud.instanceMatrix.needsUpdate = true;
     }
-  }
+  };
 
   // generate adjacent blocks after removing a block (vertical infinity world)
   generateAdjacentBlocks = (position: THREE.Vector3) => {
-    const { x, y, z } = position
-    const noise = this.noise
+    const { x, y, z } = position;
+    const noise = this.noise;
     const yOffset = Math.floor(
       noise.get(x / noise.gap, z / noise.gap, noise.seed) * noise.amp
-    )
+    );
 
     if (y > 30 + yOffset) {
-      return
+      return;
     }
 
     const stoneOffset =
       noise.get(x / noise.stoneGap, z / noise.stoneGap, noise.stoneSeed) *
-      noise.stoneAmp
+      noise.stoneAmp;
 
-    let type: BlockType
+    let type: BlockType;
 
     if (stoneOffset > noise.stoneThreshold || y < 23) {
-      type = BlockType.stone
+      type = BlockType.stone;
     } else {
       if (yOffset < -3) {
-        type = BlockType.sand
+        type = BlockType.sand;
       } else {
-        type = BlockType.dirt
+        type = BlockType.dirt;
       }
     }
 
-    this.buildBlock(new THREE.Vector3(x, y - 1, z), type)
-    this.buildBlock(new THREE.Vector3(x, y + 1, z), type)
-    this.buildBlock(new THREE.Vector3(x - 1, y, z), type)
-    this.buildBlock(new THREE.Vector3(x + 1, y, z), type)
-    this.buildBlock(new THREE.Vector3(x, y, z - 1), type)
-    this.buildBlock(new THREE.Vector3(x, y, z + 1), type)
+    this.buildBlock(new THREE.Vector3(x, y - 1, z), type);
+    this.buildBlock(new THREE.Vector3(x, y + 1, z), type);
+    this.buildBlock(new THREE.Vector3(x - 1, y, z), type);
+    this.buildBlock(new THREE.Vector3(x + 1, y, z), type);
+    this.buildBlock(new THREE.Vector3(x, y, z - 1), type);
+    this.buildBlock(new THREE.Vector3(x, y, z + 1), type);
 
-    this.blocks[type].instanceMatrix.needsUpdate = true
-  }
+    this.blocks[type].instanceMatrix.needsUpdate = true;
+  };
 
   buildBlock = (position: THREE.Vector3, type: BlockType) => {
-    const noise = this.noise
+    const noise = this.noise;
     // check if it's natural terrain
     const yOffset = Math.floor(
       noise.get(position.x / noise.gap, position.z / noise.gap, noise.seed) *
         noise.amp
-    )
+    );
     if (position.y >= 30 + yOffset || position.y < 0) {
-      return
+      return;
     }
 
-    position.y === 0 && (type = BlockType.bedrock)
+    position.y === 0 && (type = BlockType.bedrock);
 
     // check custom blocks
     for (const block of this.customBlocks) {
@@ -262,38 +276,38 @@ export default class Terrain {
         block.y === position.y &&
         block.z === position.z
       ) {
-        return
+        return;
       }
     }
 
     // build block
     this.customBlocks.push(
       new Block(position.x, position.y, position.z, type, true)
-    )
+    );
 
-    const matrix = new THREE.Matrix4()
-    matrix.setPosition(position)
-    this.blocks[type].setMatrixAt(this.getCount(type), matrix)
-    this.blocks[type].instanceMatrix.needsUpdate = true
-    this.setCount(type)
-  }
+    const matrix = new THREE.Matrix4();
+    matrix.setPosition(position);
+    this.blocks[type].setMatrixAt(this.getCount(type), matrix);
+    this.blocks[type].instanceMatrix.needsUpdate = true;
+    this.setCount(type);
+  };
 
   update = () => {
     this.chunk.set(
       Math.floor(this.camera.position.x / this.chunkSize),
       Math.floor(this.camera.position.z / this.chunkSize)
-    )
+    );
 
     //generate terrain when getting into new chunk
     if (
       this.chunk.x !== this.previousChunk.x ||
       this.chunk.y !== this.previousChunk.y
     ) {
-      this.generate()
+      this.generate();
     }
 
-    this.previousChunk.copy(this.chunk)
+    this.previousChunk.copy(this.chunk);
 
-    this.highlight.update()
-  }
+    this.highlight.update();
+  };
 }

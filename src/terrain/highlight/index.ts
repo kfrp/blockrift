@@ -1,5 +1,5 @@
-import * as THREE from 'three'
-import Terrain from '..'
+import * as THREE from "three";
+import Terrain from "..";
 
 /**
  * Highlight block on crosshair
@@ -10,74 +10,78 @@ export default class BlockHighlight {
     camera: THREE.PerspectiveCamera,
     terrain: Terrain
   ) {
-    this.camera = camera
-    this.scene = scene
-    this.terrain = terrain
-    this.raycaster = new THREE.Raycaster()
-    this.raycaster.far = 8
+    this.camera = camera;
+    this.scene = scene;
+    this.terrain = terrain;
+    this.raycaster = new THREE.Raycaster();
+    this.raycaster.far = 8;
   }
 
-  scene: THREE.Scene
-  camera: THREE.PerspectiveCamera
-  terrain: Terrain
-  raycaster: THREE.Raycaster
-  block: THREE.Intersection | null = null
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  terrain: Terrain;
+  raycaster: THREE.Raycaster;
+  block: THREE.Intersection | null = null;
 
   // highlight block mesh
-  geometry = new THREE.BoxGeometry(1.01, 1.01, 1.01)
+  geometry = new THREE.BoxGeometry(1.01, 1.01, 1.01);
   material = new THREE.MeshStandardMaterial({
     transparent: true,
-    opacity: 0.25
+    opacity: 0.25,
     // depthWrite: false
-  })
-  mesh = new THREE.Mesh(new THREE.BoxGeometry(), this.material)
+  });
+  mesh = new THREE.Mesh(new THREE.BoxGeometry(), this.material);
 
   // block simulation
-  index = 0
-  instanceMesh = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(),
-    new THREE.MeshBasicMaterial(),
-    1000
-  )
+  index = 0;
+  instanceMesh = (() => {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(),
+      new THREE.MeshBasicMaterial(),
+      1000
+    );
+    mesh.frustumCulled = false;
+    return mesh;
+  })();
 
   update() {
     // remove last highlight and reset block simulation
-    this.scene.remove(this.mesh)
-    this.index = 0
+    this.scene.remove(this.mesh);
+    this.index = 0;
     this.instanceMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
       new Float32Array(1000 * 16),
       16
-    )
+    );
 
-    const position = this.camera.position
-    const matrix = new THREE.Matrix4()
-    const idMap = new Map<string, number>()
-    const noise = this.terrain.noise
+    const position = this.camera.position;
+    const matrix = new THREE.Matrix4();
+    const idMap = new Map<string, number>();
+    const noise = this.terrain.noise;
 
-    let xPos = Math.round(position.x)
-    let zPos = Math.round(position.z)
+    let xPos = Math.round(position.x);
+    let zPos = Math.round(position.z);
 
     for (let i = -8; i < 8; i++) {
       for (let j = -8; j < 8; j++) {
         // check terrain
-        let x = xPos + i
-        let z = zPos + j
+        let x = xPos + i;
+        let z = zPos + j;
         let y =
           Math.floor(
             noise.get(x / noise.gap, z / noise.gap, noise.seed) * noise.amp
-          ) + 30
+          ) + 30;
 
-        idMap.set(`${x}_${y}_${z}`, this.index)
-        matrix.setPosition(x, y, z)
-        this.instanceMesh.setMatrixAt(this.index++, matrix)
+        idMap.set(`${x}_${y}_${z}`, this.index);
+        matrix.setPosition(x, y, z);
+        this.instanceMesh.setMatrixAt(this.index++, matrix);
 
         let stoneOffset =
           noise.get(x / noise.stoneGap, z / noise.stoneGap, noise.stoneSeed) *
-          noise.stoneAmp
+          noise.stoneAmp;
 
         let treeOffset =
           noise.get(x / noise.treeGap, z / noise.treeGap, noise.treeSeed) *
-          noise.treeAmp
+          noise.treeAmp;
 
         // check tree
         if (
@@ -86,9 +90,9 @@ export default class BlockHighlight {
           stoneOffset < noise.stoneThreshold
         ) {
           for (let t = 1; t <= noise.treeHeight; t++) {
-            idMap.set(`${x}_${y + t}_${z}`, this.index)
-            matrix.setPosition(x, y + t, z)
-            this.instanceMesh.setMatrixAt(this.index++, matrix)
+            idMap.set(`${x}_${y + t}_${z}`, this.index);
+            matrix.setPosition(x, y + t, z);
+            this.instanceMesh.setMatrixAt(this.index++, matrix);
           }
 
           // leaf
@@ -123,11 +127,11 @@ export default class BlockHighlight {
     // check custom blocks
     for (const block of this.terrain.customBlocks) {
       if (block.placed) {
-        matrix.setPosition(block.x, block.y, block.z)
-        this.instanceMesh.setMatrixAt(this.index++, matrix)
+        matrix.setPosition(block.x, block.y, block.z);
+        this.instanceMesh.setMatrixAt(this.index++, matrix);
       } else {
         if (idMap.has(`${block.x}_${block.y}_${block.z}`)) {
-          let id = idMap.get(`${block.x}_${block.y}_${block.z}`)
+          let id = idMap.get(`${block.x}_${block.y}_${block.z}`);
           this.instanceMesh.setMatrixAt(
             id!,
             new THREE.Matrix4().set(
@@ -148,26 +152,30 @@ export default class BlockHighlight {
               0,
               0
             )
-          )
+          );
         }
       }
     }
 
+    // Set instance count and compute bounding sphere for raycasting
+    this.instanceMesh.count = this.index;
+    this.instanceMesh.computeBoundingSphere();
+
     // highlight new block
-    this.raycaster.setFromCamera({ x: 0, y: 0 }, this.camera)
-    this.block = this.raycaster.intersectObject(this.instanceMesh)[0]
+    this.raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+    this.block = this.raycaster.intersectObject(this.instanceMesh)[0];
     if (
       this.block &&
       this.block.object instanceof THREE.InstancedMesh &&
-      typeof this.block.instanceId === 'number'
+      typeof this.block.instanceId === "number"
     ) {
-      this.mesh = new THREE.Mesh(this.geometry, this.material)
-      let matrix = new THREE.Matrix4()
-      this.block.object.getMatrixAt(this.block.instanceId, matrix)
-      const position = new THREE.Vector3().setFromMatrixPosition(matrix)
+      this.mesh = new THREE.Mesh(this.geometry, this.material);
+      let matrix = new THREE.Matrix4();
+      this.block.object.getMatrixAt(this.block.instanceId, matrix);
+      const position = new THREE.Vector3().setFromMatrixPosition(matrix);
 
-      this.mesh.position.set(position.x, position.y, position.z)
-      this.scene.add(this.mesh)
+      this.mesh.position.set(position.x, position.y, position.z);
+      this.scene.add(this.mesh);
     }
   }
 }
