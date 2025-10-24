@@ -1,19 +1,22 @@
+/** Movement, Collision Detection, and Block Interaction **/
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls";
-import Player, { Mode } from "../player";
-import Terrain, { BlockType } from "../terrain";
+import Player, { Mode } from "./player";
+import Terrain, { BlockType } from "./terrain";
 
-import Block from "../terrain/mesh/block";
-import Noise from "../terrain/noise";
-import Audio from "../audio";
-import { isMobile } from "../utils";
+import Block from "./mesh/block";
+import Noise from "./terrain/noise";
+import Audio from "./ui/audio";
+import { isMobile } from "./utils";
+
+// Enum representing the 6 possible collision directions in 3D space
 enum Side {
-  front,
-  back,
-  left,
-  right,
-  down,
-  up,
+  front, // Positive X direction
+  back, // Negative X direction
+  left, // Negative Z direction
+  right, // Positive Z direction
+  down, // Negative Y direction (gravity/ground)
+  up, // Positive Y direction (ceiling)
 }
 
 export default class Control {
@@ -28,35 +31,39 @@ export default class Control {
     this.camera = camera;
     this.player = player;
     this.terrain = terrain;
+    // PointerLockControls handles mouse-look camera rotation
     this.control = new PointerLockControls(camera, document.body);
     this.audio = audio;
 
-    this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 8;
-    this.far = this.player.body.height;
+    this.far = this.player.body.height; // Used for downward collision detection
 
     this.initRayCaster();
     this.initEventListeners();
   }
 
-  // core properties
+  // ===== CORE PROPERTIES =====
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   player: Player;
   terrain: Terrain;
   control: PointerLockControls;
   audio: Audio;
+  // Current velocity in 3D space (x=forward/back, y=up/down, z=left/right)
   velocity = new THREE.Vector3(0, 0, 0);
 
-  // collide and jump properties
-  frontCollide = false;
-  backCollide = false;
-  leftCollide = false;
-  rightCollide = false;
-  downCollide = true;
-  upCollide = false;
-  isJumping = false;
+  // ===== COLLISION STATE FLAGS =====
+  // These track whether the player is currently colliding with blocks in each direction
+  frontCollide = false; // Collision in positive X
+  backCollide = false; // Collision in negative X
+  leftCollide = false; // Collision in negative Z
+  rightCollide = false; // Collision in positive Z
+  downCollide = true; // Collision below (ground) - starts true
+  upCollide = false; // Collision above (ceiling)
+  isJumping = false; // Tracks if player is mid-jump
 
+  // ===== COLLISION RAYCASTERS =====
+  // Six raycasters, one for each direction, used for collision detection
+  // These are separate from the main raycaster used for block interaction
   raycasterDown = new THREE.Raycaster();
   raycasterUp = new THREE.Raycaster();
   raycasterFront = new THREE.Raycaster();
@@ -64,27 +71,32 @@ export default class Control {
   raycasterRight = new THREE.Raycaster();
   raycasterLeft = new THREE.Raycaster();
 
+  // ===== TEMPORARY COLLISION MESH =====
+  // This invisible mesh is used to simulate blocks for collision detection
+  // Instead of raycasting against all terrain blocks (expensive), we create
+  // a temporary instanced mesh with only nearby blocks that could collide
   tempMesh = (() => {
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial(),
-      100
+      100 // Max 100 instances for collision checking
     );
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = false; // Always process, even if off-screen
     return mesh;
   })();
   tempMeshMatrix = new THREE.InstancedBufferAttribute(
-    new Float32Array(100 * 16),
+    new Float32Array(100 * 16), // 16 floats per matrix (4x4)
     16
   );
 
-  // other properties
-  p1 = performance.now();
-  p2 = performance.now();
-  raycaster: THREE.Raycaster;
-  far: number;
+  // ===== TIMING AND PERFORMANCE =====
+  p1 = performance.now(); // Current frame time
+  p2 = performance.now(); // Previous frame time
+  far: number; // Dynamic raycast distance for downward collision
 
-  holdingBlock = BlockType.grass;
+  // ===== BLOCK SELECTION (HOTBAR) =====
+  holdingBlock = BlockType.grass; // Currently selected block type
+  // Array of 10 blocks available in hotbar (keys 1-9, 0)
   holdingBlocks = [
     BlockType.grass,
     BlockType.stone,
@@ -97,14 +109,19 @@ export default class Control {
     BlockType.grass,
     BlockType.grass,
   ];
-  holdingIndex = 0;
-  wheelGap = false;
-  clickInterval?: ReturnType<typeof setInterval>;
-  jumpInterval?: ReturnType<typeof setInterval>;
-  mouseHolding = false;
-  spaceHolding = false;
+  holdingIndex = 0; // Current hotbar slot (0-9)
+  wheelGap = false; // Debounce flag for mouse wheel
+  clickInterval?: ReturnType<typeof setInterval>; // For continuous block breaking
+  jumpInterval?: ReturnType<typeof setInterval>; // For continuous jump in flying mode
+  mouseHolding = false; // Tracks if mouse button is held
+  spaceHolding = false; // Tracks if space is held
 
+  /**
+   * Initialize all six directional raycasters for collision detection
+   * Each raycaster shoots in one direction from the player's position
+   */
   initRayCaster = () => {
+    // Set the direction each raycaster points
     this.raycasterUp.ray.direction = new THREE.Vector3(0, 1, 0);
     this.raycasterDown.ray.direction = new THREE.Vector3(0, -1, 0);
     this.raycasterFront.ray.direction = new THREE.Vector3(1, 0, 0);
@@ -112,74 +129,94 @@ export default class Control {
     this.raycasterLeft.ray.direction = new THREE.Vector3(0, 0, -1);
     this.raycasterRight.ray.direction = new THREE.Vector3(0, 0, 1);
 
-    this.raycasterUp.far = 1.2;
-    this.raycasterDown.far = this.player.body.height;
+    // Set maximum distance each raycaster can detect
+    this.raycasterUp.far = 1.2; // Slightly more than player height for ceiling detection
+    this.raycasterDown.far = this.player.body.height; // Detects ground beneath player
+    // Horizontal raycasters use player width for side collision
     this.raycasterFront.far = this.player.body.width;
     this.raycasterBack.far = this.player.body.width;
     this.raycasterLeft.far = this.player.body.width;
     this.raycasterRight.far = this.player.body.width;
   };
 
+  // ===== MOVEMENT STATE TRACKING =====
+  // Tracks which WASD keys are currently pressed
   downKeys = {
     a: false,
     d: false,
     w: false,
     s: false,
   };
+
+  /**
+   * Handles keydown events for movement and mode changes
+   * This sets velocity based on key presses and player mode
+   */
   setMovementHandler = (e: KeyboardEvent) => {
+    // Ignore repeated keydown events (holding key)
     if (e.repeat) {
       return;
     }
 
     switch (e.key) {
       case "q":
+        // Toggle between walking and flying mode
         if (this.player.mode === Mode.walking) {
           this.player.setMode(Mode.flying);
         } else {
           this.player.setMode(Mode.walking);
         }
+        // Reset all velocity when changing modes
         this.velocity.y = 0;
         this.velocity.x = 0;
         this.velocity.z = 0;
         break;
       case "w":
       case "W":
+        // Move forward (positive X in camera space)
         this.downKeys.w = true;
         this.velocity.x = this.player.speed;
         break;
       case "s":
       case "S":
+        // Move backward (negative X in camera space)
         this.downKeys.s = true;
         this.velocity.x = -this.player.speed;
         break;
       case "a":
       case "A":
+        // Move left (negative Z in camera space)
         this.downKeys.a = true;
         this.velocity.z = -this.player.speed;
         break;
       case "d":
       case "D":
+        // Move right (positive Z in camera space)
         this.downKeys.d = true;
         this.velocity.z = this.player.speed;
         break;
       case " ":
+        // Space bar: jump in walking mode, move up in flying mode
         if (this.player.mode === Mode.sneaking && !this.isJumping) {
-          return;
+          return; // Can't jump while sneaking
         }
         if (this.player.mode === Mode.walking) {
-          // jump
+          // Jump: apply upward velocity once
           if (!this.isJumping) {
-            this.velocity.y = 8;
+            this.velocity.y = 8; // Initial jump velocity
             this.isJumping = true;
             this.downCollide = false;
+            // Temporarily disable downward collision detection during jump start
             this.far = 0;
             setTimeout(() => {
               this.far = this.player.body.height;
             }, 300);
           }
         } else {
+          // Flying mode: continuous upward movement
           this.velocity.y += this.player.speed;
         }
+        // Enable continuous jumping in walking mode when space is held
         if (this.player.mode === Mode.walking && !this.spaceHolding) {
           this.spaceHolding = true;
           this.jumpInterval = setInterval(() => {
@@ -188,9 +225,12 @@ export default class Control {
         }
         break;
       case "Shift":
+        // Shift: sneak in walking mode, move down in flying mode
         if (this.player.mode === Mode.walking) {
           if (!this.isJumping) {
+            // Enter sneak mode (slower, prevents falling off edges)
             this.player.setMode(Mode.sneaking);
+            // Update velocities to sneak speed
             if (this.downKeys.w) {
               this.velocity.x = this.player.speed;
             }
@@ -203,9 +243,11 @@ export default class Control {
             if (this.downKeys.d) {
               this.velocity.z = this.player.speed;
             }
+            // Lower camera slightly for sneak
             this.camera.position.setY(this.camera.position.y - 0.2);
           }
         } else {
+          // Flying mode: move downward
           this.velocity.y -= this.player.speed;
         }
         break;
@@ -214,6 +256,9 @@ export default class Control {
     }
   };
 
+  /**
+   * Handles keyup events to stop movement
+   */
   resetMovementHandler = (e: KeyboardEvent) => {
     if (e.repeat) {
       return;
@@ -244,17 +289,20 @@ export default class Control {
         if (this.player.mode === Mode.sneaking && !this.isJumping) {
           return;
         }
+        // Stop continuous jumping
         this.jumpInterval && clearInterval(this.jumpInterval);
         this.spaceHolding = false;
         if (this.player.mode === Mode.walking) {
-          return;
+          return; // Gravity handles downward movement
         }
-        this.velocity.y = 0;
+        this.velocity.y = 0; // Stop vertical movement in flying mode
         break;
       case "Shift":
         if (this.player.mode === Mode.sneaking) {
           if (!this.isJumping) {
+            // Exit sneak mode back to walking
             this.player.setMode(Mode.walking);
+            // Update velocities to walking speed
             if (this.downKeys.w) {
               this.velocity.x = this.player.speed;
             }
@@ -267,47 +315,60 @@ export default class Control {
             if (this.downKeys.d) {
               this.velocity.z = this.player.speed;
             }
+            // Raise camera back up
             this.camera.position.setY(this.camera.position.y + 0.2);
           }
         }
         if (this.player.mode === Mode.walking) {
           return;
         }
-        this.velocity.y = 0;
+        this.velocity.y = 0; // Stop vertical movement in flying mode
         break;
       default:
         break;
     }
   };
 
+  /**
+   * Handles mouse clicks for block interaction (add/remove)
+   * It uses the block already identified by the Highlight system.
+   */
   mousedownHandler = (e: MouseEvent) => {
     e.preventDefault();
-    // let p1 = performance.now()
-    this.raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
-    const block = this.raycaster.intersectObjects(this.terrain.blocks)[0];
+
+    // Get the intersection result directly from the highlight system.
+    const block = this.terrain.highlight.block;
     const matrix = new THREE.Matrix4();
 
     switch (e.button) {
-      // left click to remove block
+      // LEFT CLICK: Remove block
       case 0:
         {
-          if (block && block.object instanceof THREE.InstancedMesh) {
-            // calculate position
-            block.object.getMatrixAt(block.instanceId!, matrix);
+          // We only need to check if a block was successfully highlighted.
+          if (
+            block &&
+            block.object instanceof THREE.InstancedMesh &&
+            typeof block.instanceId === "number" // Ensure instanceId is valid
+          ) {
+            // Get the position of the clicked block instance
+            block.object.getMatrixAt(block.instanceId, matrix);
             const position = new THREE.Vector3().setFromMatrixPosition(matrix);
 
-            // don't remove bedrock
+            // (Prevent removing bedrock, setMatrixAt to zero, play sound, etc.)
+
+            // Prevent removing bedrock (bottom layer)
             if (
               (BlockType[block.object.name as any] as unknown as BlockType) ===
               BlockType.bedrock
             ) {
+              // Still generate adjacent blocks to handle edge cases
               this.terrain.generateAdjacentBlocks(position);
               return;
             }
 
-            // remove the block
+            // Remove the block by setting its matrix to zero
             block.object.setMatrixAt(
-              block.instanceId!,
+              block.instanceId,
               new THREE.Matrix4().set(
                 0,
                 0,
@@ -328,11 +389,12 @@ export default class Control {
               )
             );
 
-            // block and sound effect
+            // Play sound effect based on block type
             this.audio.playSound(
               BlockType[block.object.name as any] as unknown as BlockType
             );
 
+            // Create temporary shrinking mesh for visual feedback
             const mesh = new THREE.Mesh(
               new THREE.BoxGeometry(1, 1, 1),
               this.terrain.materials.get(
@@ -345,6 +407,7 @@ export default class Control {
             this.scene.add(mesh);
             const time = performance.now();
             let raf = 0;
+            // Animate block breaking
             const animate = () => {
               if (performance.now() - time > 250) {
                 this.scene.remove(mesh);
@@ -352,14 +415,14 @@ export default class Control {
                 return;
               }
               raf = requestAnimationFrame(animate);
-              mesh.geometry.scale(0.85, 0.85, 0.85);
+              mesh.geometry.scale(0.85, 0.85, 0.85); // Shrink
             };
             animate();
 
-            // update
+            // Mark instance matrix as needing update
             block.object.instanceMatrix.needsUpdate = true;
 
-            // check existence
+            // Update custom blocks list (for save/load and regeneration)
             let existed = false;
             for (const customBlock of this.terrain.customBlocks) {
               if (
@@ -368,11 +431,12 @@ export default class Control {
                 customBlock.z === position.z
               ) {
                 existed = true;
+                // Mark existing custom block as removed
                 customBlock.placed = false;
               }
             }
 
-            // add to custom blocks when it's not existed
+            // If this was a procedurally generated block, add it to custom blocks as removed
             if (!existed) {
               this.terrain.customBlocks.push(
                 new Block(
@@ -380,27 +444,33 @@ export default class Control {
                   position.y,
                   position.z,
                   BlockType[block.object.name as any] as unknown as BlockType,
-                  false
+                  false // placed = false means removed
                 )
               );
             }
 
-            // generate adjacent blocks
+            // Generate blocks beneath/around removed block (for infinite depth)
             this.terrain.generateAdjacentBlocks(position);
           }
         }
         break;
 
-      // right click to put block
+      // RIGHT CLICK: Place block
       case 2:
         {
-          if (block && block.object instanceof THREE.InstancedMesh) {
-            // calculate normal and position
+          if (
+            block &&
+            block.object instanceof THREE.InstancedMesh &&
+            typeof block.instanceId === "number"
+          ) {
+            // (Get face normal, get position, prevent placing in player, etc.)
+
+            // Get face normal to determine where to place new block
             const normal = block.face!.normal;
-            block.object.getMatrixAt(block.instanceId!, matrix);
+            block.object.getMatrixAt(block.instanceId, matrix);
             const position = new THREE.Vector3().setFromMatrixPosition(matrix);
 
-            // return when block overlaps with player
+            // Prevent placing block inside player (check both head and feet)
             if (
               position.x + normal.x === Math.round(this.camera.position.x) &&
               position.z + normal.z === Math.round(this.camera.position.z) &&
@@ -411,33 +481,35 @@ export default class Control {
               return;
             }
 
-            // put the block
+            // Place block adjacent to clicked face
             matrix.setPosition(
               normal.x + position.x,
               normal.y + position.y,
               normal.z + position.z
             );
+
+            // Add instance to the appropriate block type mesh
             this.terrain.blocks[this.holdingBlock].setMatrixAt(
               this.terrain.getCount(this.holdingBlock),
               matrix
             );
             this.terrain.setCount(this.holdingBlock);
 
-            //sound effect
+            // Play placement sound
             this.audio.playSound(this.holdingBlock);
 
-            // update
+            // Mark for update
             this.terrain.blocks[this.holdingBlock].instanceMatrix.needsUpdate =
               true;
 
-            // add to custom blocks
+            // Add to custom blocks list
             this.terrain.customBlocks.push(
               new Block(
                 normal.x + position.x,
                 normal.y + position.y,
                 normal.z + position.z,
                 this.holdingBlock,
-                true
+                true // placed = true
               )
             );
           }
@@ -447,52 +519,69 @@ export default class Control {
         break;
     }
 
+    // Enable continuous block breaking/placing on mobile
     if (!isMobile && !this.mouseHolding) {
       this.mouseHolding = true;
       this.clickInterval = setInterval(() => {
         this.mousedownHandler(e);
       }, 333);
     }
-
-    // console.log(performance.now() - p1)
   };
+  /**
+   * Stop continuous block interaction on mouse up
+   */
   mouseupHandler = () => {
     this.clickInterval && clearInterval(this.clickInterval);
     this.mouseHolding = false;
   };
 
+  /**
+   * Handle number key presses to change selected block (hotbar)
+   */
   changeHoldingBlockHandler = (e: KeyboardEvent) => {
     if (isNaN(parseInt(e.key)) || e.key === "0") {
       return;
     }
-    this.holdingIndex = parseInt(e.key) - 1;
+    this.holdingIndex = parseInt(e.key) - 1; // Keys 1-9 map to indices 0-8
 
     this.holdingBlock =
       this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
   };
 
+  /**
+   * Handle mouse wheel for scrolling through hotbar
+   */
   wheelHandler = (e: WheelEvent) => {
+    // Debounce wheel events
     if (!this.wheelGap) {
       this.wheelGap = true;
       setTimeout(() => {
         this.wheelGap = false;
       }, 100);
+
       if (e.deltaY > 0) {
+        // Scroll down: next block
         this.holdingIndex++;
         this.holdingIndex > 9 && (this.holdingIndex = 0);
       } else if (e.deltaY < 0) {
+        // Scroll up: previous block
         this.holdingIndex--;
         this.holdingIndex < 0 && (this.holdingIndex = 9);
       }
+
       this.holdingBlock =
         this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
     }
   };
 
+  /**
+   * Set up event listeners that are only active when pointer is locked
+   */
   initEventListeners = () => {
-    // add / remove handler when pointer lock / unlock
+    // Add/remove event listeners based on pointer lock state
     document.addEventListener("pointerlockchange", () => {
       if (document.pointerLockElement) {
+        // Pointer locked: game is active
         document.body.addEventListener(
           "keydown",
           this.changeHoldingBlockHandler
@@ -503,6 +592,7 @@ export default class Control {
         document.body.addEventListener("mousedown", this.mousedownHandler);
         document.body.addEventListener("mouseup", this.mouseupHandler);
       } else {
+        // Pointer unlocked: game is paused
         document.body.removeEventListener(
           "keydown",
           this.changeHoldingBlockHandler
@@ -512,24 +602,32 @@ export default class Control {
         document.body.removeEventListener("keyup", this.resetMovementHandler);
         document.body.removeEventListener("mousedown", this.mousedownHandler);
         document.body.removeEventListener("mouseup", this.mouseupHandler);
+        // Stop all movement
         this.velocity = new THREE.Vector3(0, 0, 0);
       }
     });
   };
 
-  // move along X with direction factor
+  /**
+   * Move camera along X axis (forward/backward in camera space)
+   */
   moveX(distance: number, delta: number) {
     this.camera.position.x +=
       distance * (this.player.speed / Math.PI) * 2 * delta;
   }
 
-  // move along Z with direction factor
+  /**
+   * Move camera along Z axis (left/right in camera space)
+   */
   moveZ = (distance: number, delta: number) => {
     this.camera.position.z +=
       distance * (this.player.speed / Math.PI) * 2 * delta;
   };
 
-  // collide checking
+  /**
+   * Check collisions in all 6 directions
+   * This is called every frame to update collision state
+   */
   collideCheckAll = (
     position: THREE.Vector3,
     noise: Noise,
@@ -544,6 +642,16 @@ export default class Control {
     this.collideCheck(Side.up, position, noise, customBlocks);
   };
 
+  /**
+   * Check collision in a specific direction
+   * This is the core collision detection logic:
+   * 1. Calculate which block position to check based on direction
+   * 2. Use procedural generation to determine if a block exists there
+   * 3. Account for custom blocks (placed/removed by player)
+   * 4. Build a temporary mesh with those blocks
+   * 5. Raycast against the temporary mesh
+   * 6. Update collision flags
+   */
   collideCheck = (
     side: Side,
     position: THREE.Vector3,
@@ -553,7 +661,7 @@ export default class Control {
   ) => {
     const matrix = new THREE.Matrix4();
 
-    //reset simulation blocks
+    // Reset temporary collision mesh
     let index = 0;
     this.tempMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
       new Float32Array(100 * 16),
@@ -561,59 +669,64 @@ export default class Control {
     );
     this.tempMesh.count = 0;
 
-    // block to remove
+    // Track which blocks have been removed by player
     let removed = false;
     let treeRemoved = new Array<boolean>(
       this.terrain.noise.treeHeight + 1
     ).fill(false);
 
-    // get block position
+    // Calculate block position to check based on direction
     let x = Math.round(position.x);
     let z = Math.round(position.z);
 
+    // Adjust position and set raycaster origin based on direction
     switch (side) {
       case Side.front:
-        x++;
+        x++; // Check block in front (positive X)
         this.raycasterFront.ray.origin = position;
         break;
       case Side.back:
-        x--;
+        x--; // Check block behind (negative X)
         this.raycasterBack.ray.origin = position;
         break;
       case Side.left:
-        z--;
+        z--; // Check block to left (negative Z)
         this.raycasterLeft.ray.origin = position;
         break;
       case Side.right:
-        z++;
+        z++; // Check block to right (positive Z)
         this.raycasterRight.ray.origin = position;
         break;
       case Side.down:
+        // Check block below
         this.raycasterDown.ray.origin = position;
-        this.raycasterDown.far = far;
+        this.raycasterDown.far = far; // Dynamic distance for jump handling
         break;
       case Side.up:
+        // Check block above (offset down by 1 since camera is at head height)
         this.raycasterUp.ray.origin = new THREE.Vector3().copy(position);
         this.raycasterUp.ray.origin.y--;
         break;
     }
 
+    // Calculate procedural terrain height at this X,Z position
     let y =
       Math.floor(
         noise.get(x / noise.gap, z / noise.gap, noise.seed) * noise.amp
       ) + 30;
 
-    // check custom blocks
+    // Check if player has modified blocks at this position
     for (const block of customBlocks) {
       if (block.x === x && block.z === z) {
         if (block.placed) {
-          // placed blocks
+          // Player placed a block here - add to collision mesh
           matrix.setPosition(block.x, block.y, block.z);
           this.tempMesh.setMatrixAt(index++, matrix);
         } else if (block.y === y) {
-          // removed blocks
+          // Player removed the terrain block - mark as removed
           removed = true;
         } else {
+          // Check if player removed part of a tree
           for (let i = 1; i <= this.terrain.noise.treeHeight; i++) {
             if (block.y === y + i) {
               treeRemoved[i] = true;
@@ -623,13 +736,16 @@ export default class Control {
       }
     }
 
-    // update simulation blocks (ignore removed blocks)
+    // Add procedural terrain block to collision mesh (if not removed)
     if (!removed) {
       matrix.setPosition(x, y, z);
       this.tempMesh.setMatrixAt(index++, matrix);
     }
+
+    // Add tree blocks to collision mesh (if tree exists here)
     for (let i = 1; i <= this.terrain.noise.treeHeight; i++) {
       if (!treeRemoved[i]) {
+        // Check if tree should exist at this position
         let treeOffset =
           noise.get(x / noise.treeGap, z / noise.treeGap, noise.treeSeed) *
           noise.treeAmp;
@@ -638,6 +754,7 @@ export default class Control {
           noise.get(x / noise.stoneGap, z / noise.stoneGap, noise.stoneSeed) *
           noise.stoneAmp;
 
+        // Tree generation rules: above threshold, not underwater, not in stone area
         if (
           treeOffset > noise.treeThreshold &&
           y >= 27 &&
@@ -649,7 +766,8 @@ export default class Control {
       }
     }
 
-    // sneaking check
+    // Special case: when sneaking, add invisible collision block at edge
+    // This prevents player from falling off edges while sneaking
     if (
       this.player.mode === Mode.sneaking &&
       y < Math.floor(this.camera.position.y - 2) &&
@@ -659,20 +777,23 @@ export default class Control {
       matrix.setPosition(x, Math.floor(this.camera.position.y - 1), z);
       this.tempMesh.setMatrixAt(index++, matrix);
     }
+
+    // Finalize temporary mesh
     this.tempMesh.count = index;
     this.tempMesh.instanceMatrix.needsUpdate = true;
-    // Compute bounding sphere for raycasting to work properly
+    // Compute bounding sphere is required for raycasting to work
     this.tempMesh.computeBoundingSphere();
 
-    // update collide
+    // Perform raycasting to detect collision
+    // Check both at head level and feet level (hence origin and origin-1)
     const origin = new THREE.Vector3(position.x, position.y - 1, position.z);
     switch (side) {
       case Side.front: {
         const c1 = this.raycasterFront.intersectObject(this.tempMesh).length;
         this.raycasterFront.ray.origin = origin;
         const c2 = this.raycasterFront.intersectObject(this.tempMesh).length;
+        // Collision if either head or feet hit something
         c1 || c2 ? (this.frontCollide = true) : (this.frontCollide = false);
-
         break;
       }
       case Side.back: {
@@ -709,62 +830,79 @@ export default class Control {
     }
   };
 
+  /**
+   * Main update loop called every frame
+   * Handles movement, collision, and physics
+   */
   update = () => {
+    // Calculate delta time for frame-rate independent movement
     this.p1 = performance.now();
-    const delta = (this.p1 - this.p2) / 1000;
-    if (
-      // dev mode
-      this.player.mode === Mode.flying
-    ) {
+    const delta = (this.p1 - this.p2) / 1000; // Convert to seconds
+
+    if (this.player.mode === Mode.flying) {
+      // FLYING MODE: Simple movement without collision or gravity
       this.control.moveForward(this.velocity.x * delta);
       this.control.moveRight(this.velocity.z * delta);
       this.camera.position.y += this.velocity.y * delta;
     } else {
-      // normal mode
+      // WALKING/SNEAKING MODE: Full physics and collision
+
+      // Check collisions in all directions
       this.collideCheckAll(
         this.camera.position,
         this.terrain.noise,
         this.terrain.customBlocks,
-        this.far - this.velocity.y * delta
+        this.far - this.velocity.y * delta // Adjust downward check during jumps
       );
 
-      // gravity
+      // Apply gravity (capped at terminal velocity)
       if (Math.abs(this.velocity.y) < this.player.falling) {
-        this.velocity.y -= 25 * delta;
+        this.velocity.y -= 25 * delta; // Gravity acceleration
       }
 
-      // up collide handler
+      // Handle ceiling collision
       if (this.upCollide) {
-        this.velocity.y = -225 * delta;
+        this.velocity.y = -225 * delta; // Push down
         this.far = this.player.body.height;
       }
 
-      // down collide and jump handler
+      // Handle ground collision and landing
       if (this.downCollide && !this.isJumping) {
-        this.velocity.y = 0;
+        this.velocity.y = 0; // Stop falling
       } else if (this.downCollide && this.isJumping) {
-        this.isJumping = false;
+        this.isJumping = false; // Land
       }
 
-      // side collide handler
+      // Calculate camera facing direction for collision-aware movement
       let vector = new THREE.Vector3(0, 0, -1).applyQuaternion(
         this.camera.quaternion
       );
-      let direction = Math.atan2(vector.x, vector.z);
+      let direction = Math.atan2(vector.x, vector.z); // Angle in radians
+
+      // COMPLEX COLLISION HANDLING:
+      // When colliding with walls, allow sliding along them based on camera angle
+      // This entire section handles all combinations of collision directions
+      // and camera angles to provide smooth wall sliding
       if (
         this.frontCollide ||
         this.backCollide ||
         this.leftCollide ||
         this.rightCollide
       ) {
-        // collide front (positive x)
+        // The following blocks handle collision response for each direction
+        // They allow player to slide along walls at angles rather than stopping completely
+        // Each block checks: collision direction, camera direction, and movement input
+        // Then applies partial movement perpendicular to the wall if possible
+
+        // FRONT COLLISION (positive X)
         if (this.frontCollide) {
-          // camera front
+          // Camera facing forward (+X), trying to move forward
           if (direction < Math.PI && direction > 0 && this.velocity.x > 0) {
             if (
               (!this.leftCollide && direction > Math.PI / 2) ||
               (!this.rightCollide && direction < Math.PI / 2)
             ) {
+              // Slide along wall in Z direction
               this.moveZ(Math.PI / 2 - direction, delta);
             }
           } else if (
@@ -775,7 +913,7 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera back
+          // Camera facing backward (-X), trying to move backward
           if (direction < 0 && direction > -Math.PI && this.velocity.x < 0) {
             if (
               (!this.leftCollide && direction > -Math.PI / 2) ||
@@ -791,7 +929,7 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera left
+          // Strafing left/right while front-collided
           if (
             direction < Math.PI / 2 &&
             direction > -Math.PI / 2 &&
@@ -811,7 +949,6 @@ export default class Control {
             this.control.moveRight(this.velocity.z * delta);
           }
 
-          // camera right
           if (
             (direction < -Math.PI / 2 || direction > Math.PI / 2) &&
             this.velocity.z > 0
@@ -831,9 +968,9 @@ export default class Control {
           }
         }
 
-        // collide back (negative x)
+        // BACK COLLISION (negative X)
         if (this.backCollide) {
-          // camera front
+          // Similar logic as front collision, but for back direction
           if (direction < 0 && direction > -Math.PI && this.velocity.x > 0) {
             if (
               (!this.leftCollide && direction < -Math.PI / 2) ||
@@ -849,7 +986,6 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera back
           if (direction < Math.PI && direction > 0 && this.velocity.x < 0) {
             if (
               (!this.leftCollide && direction < Math.PI / 2) ||
@@ -865,7 +1001,6 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera left
           if (
             (direction < -Math.PI / 2 || direction > Math.PI / 2) &&
             this.velocity.z < 0
@@ -884,7 +1019,6 @@ export default class Control {
             this.control.moveRight(this.velocity.z * delta);
           }
 
-          // camera right
           if (
             direction < Math.PI / 2 &&
             direction > -Math.PI / 2 &&
@@ -905,9 +1039,9 @@ export default class Control {
           }
         }
 
-        // collide left (negative z)
+        // LEFT COLLISION (negative Z)
         if (this.leftCollide) {
-          // camera front
+          // Similar logic for left direction
           if (
             (direction < -Math.PI / 2 || direction > Math.PI / 2) &&
             this.velocity.x > 0
@@ -940,7 +1074,6 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera back
           if (
             direction < Math.PI / 2 &&
             direction > -Math.PI / 2 &&
@@ -974,7 +1107,6 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera left
           if (direction > 0 && direction < Math.PI && this.velocity.z < 0) {
             if (
               (!this.backCollide && direction > Math.PI / 2) ||
@@ -1004,7 +1136,6 @@ export default class Control {
             this.control.moveRight(this.velocity.z * delta);
           }
 
-          // camera right
           if (direction < 0 && direction > -Math.PI && this.velocity.z > 0) {
             if (
               (!this.backCollide && direction > -Math.PI / 2) ||
@@ -1035,9 +1166,9 @@ export default class Control {
           }
         }
 
-        // collide right (positive z)
+        // RIGHT COLLISION (positive Z)
         if (this.rightCollide) {
-          // camera front
+          // Similar logic for right direction
           if (
             direction < Math.PI / 2 &&
             direction > -Math.PI / 2 &&
@@ -1071,7 +1202,6 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera back
           if (
             (direction < -Math.PI / 2 || direction > Math.PI / 2) &&
             this.velocity.x < 0
@@ -1104,7 +1234,6 @@ export default class Control {
             this.control.moveForward(this.velocity.x * delta);
           }
 
-          // camera left
           if (direction < 0 && direction > -Math.PI && this.velocity.z < 0) {
             if (
               (!this.frontCollide && direction > -Math.PI / 2) ||
@@ -1134,7 +1263,6 @@ export default class Control {
             this.control.moveRight(this.velocity.z * delta);
           }
 
-          // camera right
           if (direction > 0 && direction < Math.PI && this.velocity.z > 0) {
             if (
               (!this.frontCollide && direction > Math.PI / 2) ||
@@ -1165,18 +1293,21 @@ export default class Control {
           }
         }
       } else {
-        // no collide
+        // NO COLLISION: Move freely
         this.control.moveForward(this.velocity.x * delta);
         this.control.moveRight(this.velocity.z * delta);
       }
 
+      // Apply vertical movement (gravity/jump)
       this.camera.position.y += this.velocity.y * delta;
 
-      // catching net
+      // Safety net: teleport player back up if they fall through world
       if (this.camera.position.y < -100) {
         this.camera.position.y = 60;
       }
     }
+
+    // Store current time for next frame's delta calculation
     this.p2 = this.p1;
   };
 }

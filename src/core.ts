@@ -18,7 +18,7 @@ export default class Core {
     this.camera.fov = 50;
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.near = 0.01;
-    this.camera.far = 500;
+    this.camera.far = 2000;
     this.camera.updateProjectionMatrix();
     this.camera.position.set(8, 50, 8);
 
@@ -34,7 +34,7 @@ export default class Core {
     this.scene = new THREE.Scene();
     const backgroundColor = 0x87ceeb;
 
-    this.scene.fog = new THREE.Fog(backgroundColor, 1, 96);
+    this.scene.fog = new THREE.Fog(backgroundColor, 20, 450);
     this.scene.background = new THREE.Color(backgroundColor);
 
     // DirectionalLight is better for sunlight and more performant than PointLight
