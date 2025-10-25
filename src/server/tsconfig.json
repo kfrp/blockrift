@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2023"],
+
+    "types": ["node"],
+
+    "rootDir": ".",
+    "esModuleInterop": true,
+    "moduleResolution": "node"
+  },
+  "include": ["**/*", "**/*.json", "../../package.json"],
+  "exclude": ["**/*.test.ts"]
+}

@@ -3,17 +3,26 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "dev": "vite",
+    "dev:client": "cd src/client && vite",
+    "dev:server": "cd src/server && tsx index",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "build": "vite build",
     "preview": "vite preview --port 8080",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/express": "^5.0.4",
+    "@types/node": "^24.9.1",
     "@types/three": "^0.180.0",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.11"
   },
   "dependencies": {
-    "three": "^0.180.0"
+    "express": "^5.1.0",
+    "redis": "^5.9.0",
+    "three": "^0.180.0",
+    "ws": "^8.18.3"
   }
 }

@@ -4,7 +4,9 @@ import Player from "./player";
 import Terrain from "./terrain";
 import UI from "./ui";
 import Audio from "./ui/audio";
+import { testRealtime } from "./realtime-test";
 
+console.log(testRealtime);
 const core = new Core();
 const camera = core.camera;
 const scene = core.scene;
