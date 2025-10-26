@@ -87,7 +87,8 @@ export default class Terrain {
         block.computeBoundingSphere();
       }
     };
-    this.generate();
+    // Don't generate terrain yet - wait for server to send seeds
+    // this.generate() will be called by setSeeds() when server responds
   }
 
   // ===== CORE PROPERTIES =====
@@ -100,7 +101,7 @@ export default class Terrain {
   maxCount: number; // Maximum number of blocks to allocate
   chunk = new THREE.Vector2(0, 0); // Current chunk player is in
   previousChunk = new THREE.Vector2(0, 0); // Previous chunk (for change detection)
-  noise = new Noise(); // Noise generator with all seeds
+  noise!: Noise; // Noise generator - will be initialized when server sends seeds
 
   // ===== MATERIALS =====
   materials = new Materials(); // Manages textures and materials
@@ -155,6 +156,18 @@ export default class Terrain {
   })();
   cloudCount = 0; // Current number of clouds
   cloudGap = 5; // Counter for cloud regeneration throttling
+
+  /**
+   * Update terrain seeds from server
+   * This ensures all players see the same world
+   */
+  setSeeds(seed: number): void {
+    console.log(`Terrain: Setting seed to ${seed}`);
+    this.noise = new Noise(seed);
+    // Regenerate terrain with new seeds
+    this.generate();
+    console.log(`Terrain: Generated world with seed ${seed}`);
+  }
 
   /**
    * Get current instance count for a block type

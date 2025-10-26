@@ -1,8 +1,6 @@
 import Bag from "./bag";
 import Terrain from "../terrain";
-import Block from "../mesh/block";
 import Control from "../control";
-import { Mode } from "../player";
 import Joystick from "./joystick";
 import { isMobile } from "../utils";
 import * as THREE from "three";
@@ -20,74 +18,18 @@ export default class UI {
     this.play?.addEventListener("click", () => {
       if (this.play?.innerHTML === "Play") {
         this.onPlay();
-
-        // reset game
-        terrain.noise.seed = Math.random();
-        terrain.noise.stoneSeed = Math.random();
-        terrain.noise.treeSeed = Math.random();
-        terrain.noise.coalSeed = Math.random();
-        terrain.noise.leafSeed = Math.random();
-        terrain.customBlocks = [];
-        terrain.initBlocks();
-        terrain.generate();
-        terrain.camera.position.y = 40;
-        control.player.setMode(Mode.walking);
       }
       !isMobile && control.control.lock();
     });
 
-    // save load
+    // save load - disabled in multiplayer mode
     this.save?.addEventListener("click", () => {
-      if (this.save?.innerHTML === "Save and Exit") {
-        // save game
-        window.localStorage.setItem(
-          "block",
-          JSON.stringify(terrain.customBlocks)
-        );
-        window.localStorage.setItem("seed", JSON.stringify(terrain.noise.seed));
-
-        window.localStorage.setItem(
-          "position",
-          JSON.stringify({
-            x: terrain.camera.position.x,
-            y: terrain.camera.position.y,
-            z: terrain.camera.position.z,
-          })
-        );
-
-        // ui update
-        this.onExit();
-        this.onSave();
-      } else {
-        // load game
-        terrain.noise.seed =
-          Number(window.localStorage.getItem("seed")) ?? Math.random();
-
-        const customBlocks =
-          (JSON.parse(
-            window.localStorage.getItem("block") || "null"
-          ) as Block[]) ?? [];
-
-        terrain.customBlocks = customBlocks;
-        terrain.initBlocks();
-        terrain.generate();
-
-        const position =
-          (JSON.parse(window.localStorage.getItem("position") || "null") as {
-            x: number;
-            y: number;
-            z: number;
-          }) ?? null;
-
-        position && (terrain.camera.position.x = position.x);
-        position && (terrain.camera.position.y = position.y);
-        position && (terrain.camera.position.z = position.z);
-
-        // ui update
-        this.onPlay();
-        this.onLoad();
-        !isMobile && control.control.lock();
-      }
+      console.log(
+        "Save/Load disabled in multiplayer mode - world state is managed by server"
+      );
+      // In multiplayer mode, the server manages world state
+      // Local save/load is not supported
+      !isMobile && control.control.lock();
     });
 
     // guide
@@ -235,9 +177,9 @@ export default class UI {
   };
 
   onPause = () => {
-    this.menu?.classList.remove("hidden");
+    /*    this.menu?.classList.remove("hidden");
     this.crossHair.classList.add("hidden");
-    this.save && (this.save.innerHTML = "Save and Exit");
+    this.save && (this.save.innerHTML = "Save and Exit");*/
   };
 
   onExit = () => {

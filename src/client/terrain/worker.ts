@@ -29,7 +29,7 @@ enum BlockType {
 // ===== WORKER-SCOPED VARIABLES =====
 // These persist between worker calls for efficiency
 const matrix = new THREE.Matrix4(); // Reusable matrix for positioning blocks
-const noise = new Noise(); // Noise generator for procedural generation
+let noise: Noise | null = null; // Noise generator - initialized on first message with seeds
 const blocks: THREE.InstancedMesh[] = []; // Array of meshes, one per block type
 
 const geometry = new THREE.BoxGeometry(); // Shared geometry
@@ -87,11 +87,24 @@ onmessage = (
     isFirstRun = false;
   }
 
-  // Apply noise seeds from terrain
-  noise.seed = noiseSeed;
-  noise.treeSeed = treeSeed;
-  noise.stoneSeed = stoneSeed;
-  noise.coalSeed = coalSeed;
+  // Initialize or update noise with seeds from terrain
+  if (noise === null) {
+    // First time - create Noise with server seed
+    noise = new Noise(noiseSeed);
+    console.log(`Worker: Initialized Noise with seed ${noiseSeed}`);
+  } else {
+    // Update existing noise seeds
+    noise.seed = noiseSeed;
+    noise.treeSeed = treeSeed;
+    noise.stoneSeed = stoneSeed;
+    noise.coalSeed = coalSeed;
+  }
+
+  // Safety check - noise must be initialized
+  if (noise === null) {
+    console.error("Worker: Noise not initialized, cannot generate terrain");
+    return;
+  }
 
   // Reset instance matrices for all block types
   for (let i = 0; i < blocks.length; i++) {

@@ -10,17 +10,23 @@ export default class Block {
     y: number,
     z: number,
     type: BlockType,
-    placed: boolean
+    placed: boolean,
+    username: string = "",
+    timestamp: number = Date.now()
   ) {
     this.x = x;
     this.y = y;
     this.z = z;
     this.type = type;
     this.placed = placed;
+    this.username = username;
+    this.timestamp = timestamp;
   }
   x: number;
   y: number;
   z: number;
   type: BlockType;
   placed: boolean;
+  username: string;
+  timestamp: number;
 }

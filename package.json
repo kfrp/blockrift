@@ -5,19 +5,26 @@
   "scripts": {
     "dev:client": "cd src/client && vite",
     "dev:server": "cd src/server && tsx index",
+    "build:client": "cd src/client && vite build",
+    "build:server": "cd src/server && vite build",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
-    "build": "vite build",
+    "build": "npm run build:client && npm run build:server",
     "preview": "vite preview --port 8080",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
   },
   "devDependencies": {
     "@types/express": "^5.0.4",
     "@types/node": "^24.9.1",
     "@types/three": "^0.180.0",
     "@types/ws": "^8.18.1",
+    "@vitest/ui": "^4.0.3",
     "concurrently": "^9.2.1",
     "typescript": "^5.9.3",
-    "vite": "^7.1.11"
+    "vite": "^7.1.11",
+    "vitest": "^4.0.3"
   },
   "dependencies": {
     "express": "^5.1.0",

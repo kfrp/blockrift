@@ -1,6 +1,6 @@
 // Mock Devvit realtime client API
 
-interface RealtimeConnection {
+export interface RealtimeConnection {
   channel: string;
   ws: WebSocket;
   disconnect: () => void;
@@ -8,6 +8,7 @@ interface RealtimeConnection {
 
 interface ConnectRealtimeOptions {
   channel: string;
+  level?: string; // Optional level identifier for separate game worlds
   onConnect?: (channel: string) => void;
   onDisconnect?: (channel: string) => void;
   onMessage?: (data: any) => void;
@@ -16,7 +17,7 @@ interface ConnectRealtimeOptions {
 export async function connectRealtime(
   options: ConnectRealtimeOptions
 ): Promise<RealtimeConnection> {
-  const { channel, onConnect, onDisconnect, onMessage } = options;
+  const { channel, level, onConnect, onDisconnect, onMessage } = options;
 
   return new Promise((resolve, reject) => {
     const ws = new WebSocket("ws://localhost:3000");
@@ -24,11 +25,12 @@ export async function connectRealtime(
     ws.onopen = () => {
       console.log("WebSocket connected");
 
-      // Subscribe to channel
+      // Subscribe to channel with optional level
       ws.send(
         JSON.stringify({
           type: "subscribe",
           channel,
+          level: level || "default", // Default level if not specified
         })
       );
     };
@@ -54,16 +56,19 @@ export async function connectRealtime(
               );
             },
           });
-        }
 
-        if (msg.type === "disconnected") {
+          // Also pass the connected message to onMessage handler
+          onMessage?.(msg);
+        } else if (msg.type === "disconnected") {
           console.log(`Disconnected from ${msg.channel}`);
           onDisconnect?.(msg.channel);
-        }
-
-        if (msg.type === "message") {
+        } else if (msg.type === "message") {
           console.log("Received message:", msg.data);
           onMessage?.(msg.data);
+        } else {
+          // Pass all other message types directly to onMessage handler
+          // This includes: block-modify, player-positions, player-joined, player-left, etc.
+          onMessage?.(msg);
         }
       } catch (error) {
         console.error("Error parsing message:", error);

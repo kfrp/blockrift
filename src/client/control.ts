@@ -19,13 +19,16 @@ enum Side {
   up, // Positive Y direction (ceiling)
 }
 
+import MultiplayerManager from "./multiplayer";
+
 export default class Control {
   constructor(
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     player: Player,
     terrain: Terrain,
-    audio: Audio
+    audio: Audio,
+    multiplayer: MultiplayerManager
   ) {
     this.scene = scene;
     this.camera = camera;
@@ -34,6 +37,7 @@ export default class Control {
     // PointerLockControls handles mouse-look camera rotation
     this.control = new PointerLockControls(camera, document.body);
     this.audio = audio;
+    this.multiplayer = multiplayer;
 
     this.far = this.player.body.height; // Used for downward collision detection
 
@@ -48,6 +52,7 @@ export default class Control {
   terrain: Terrain;
   control: PointerLockControls;
   audio: Audio;
+  multiplayer: MultiplayerManager;
   // Current velocity in 3D space (x=forward/back, y=up/down, z=left/right)
   velocity = new THREE.Vector3(0, 0, 0);
 
@@ -433,6 +438,8 @@ export default class Control {
                 existed = true;
                 // Mark existing custom block as removed
                 customBlock.placed = false;
+                customBlock.username = this.multiplayer.getUsername();
+                customBlock.timestamp = Date.now();
               }
             }
 
@@ -444,10 +451,15 @@ export default class Control {
                   position.y,
                   position.z,
                   BlockType[block.object.name as any] as unknown as BlockType,
-                  false // placed = false means removed
+                  false, // placed = false means removed
+                  this.multiplayer.getUsername(),
+                  Date.now()
                 )
               );
             }
+
+            // Send block modification to server
+            this.multiplayer.sendBlockModification(position, null, "remove");
 
             // Generate blocks beneath/around removed block (for infinite depth)
             this.terrain.generateAdjacentBlocks(position);
@@ -509,8 +521,21 @@ export default class Control {
                 normal.y + position.y,
                 normal.z + position.z,
                 this.holdingBlock,
-                true // placed = true
+                true, // placed = true
+                this.multiplayer.getUsername(),
+                Date.now()
               )
+            );
+
+            // Send block modification to server
+            this.multiplayer.sendBlockModification(
+              new THREE.Vector3(
+                normal.x + position.x,
+                normal.y + position.y,
+                normal.z + position.z
+              ),
+              this.holdingBlock,
+              "place"
             );
           }
         }
