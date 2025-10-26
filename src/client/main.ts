@@ -25,8 +25,6 @@ const multiplayer = new MultiplayerManager(scene, camera, terrain);
 const urlParams = new URLSearchParams(window.location.search);
 const level = urlParams.get("level") || "default";
 
-console.log(`Connecting to level: ${level}`);
-
 // Connect to multiplayer server
 multiplayer.connect(level).catch((error) => {
   console.error("Failed to connect to multiplayer server:", error);
@@ -80,7 +78,6 @@ setInterval(() => {
 
 // animation
 (function animate() {
-  // let p1 = performance.now()
   requestAnimationFrame(animate);
 
   const delta = 1 / 60; // Approximate delta for 60 FPS
@@ -90,5 +87,4 @@ setInterval(() => {
   multiplayer.update(delta);
 
   renderer.render(scene, camera);
-  // console.log(performance.now()-p1)
 })();

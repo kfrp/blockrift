@@ -38,8 +38,8 @@ export async function connectRealtime(
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-
-        if (msg.type === "connected") {
+        console.log(msg);
+        if (msg.type === "subscribed") {
           console.log(`Connected to ${msg.channel}`);
           onConnect?.(msg.channel);
 
@@ -63,7 +63,6 @@ export async function connectRealtime(
           console.log(`Disconnected from ${msg.channel}`);
           onDisconnect?.(msg.channel);
         } else if (msg.type === "message") {
-          console.log("Received message:", msg.data);
           onMessage?.(msg.data);
         } else {
           // Pass all other message types directly to onMessage handler

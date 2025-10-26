@@ -32,8 +32,6 @@ export default class Noise {
     // Seed is required - must come from server
     this.seed = seed;
 
-    console.log(`Noise: Initialized with seed ${this.seed}`);
-
     // Derive all other seeds from the main seed
     this.stoneSeed = this.seed * 0.4;
     this.coalSeed = this.seed * 0.5;

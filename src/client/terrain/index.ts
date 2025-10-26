@@ -162,11 +162,9 @@ export default class Terrain {
    * This ensures all players see the same world
    */
   setSeeds(seed: number): void {
-    console.log(`Terrain: Setting seed to ${seed}`);
     this.noise = new Noise(seed);
     // Regenerate terrain with new seeds
     this.generate();
-    console.log(`Terrain: Generated world with seed ${seed}`);
   }
 
   /**

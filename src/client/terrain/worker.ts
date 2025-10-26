@@ -91,7 +91,6 @@ onmessage = (
   if (noise === null) {
     // First time - create Noise with server seed
     noise = new Noise(noiseSeed);
-    console.log(`Worker: Initialized Noise with seed ${noiseSeed}`);
   } else {
     // Update existing noise seeds
     noise.seed = noiseSeed;

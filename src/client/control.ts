@@ -458,8 +458,15 @@ export default class Control {
               );
             }
 
-            // Send block modification to server
-            this.multiplayer.sendBlockModification(position, null, "remove");
+            // Send block modification to server with the block type
+            const blockType = BlockType[
+              block.object.name as any
+            ] as unknown as BlockType;
+            this.multiplayer.sendBlockModification(
+              position,
+              blockType,
+              "remove"
+            );
 
             // Generate blocks beneath/around removed block (for infinite depth)
             this.terrain.generateAdjacentBlocks(position);
@@ -684,6 +691,8 @@ export default class Control {
     customBlocks: Block[],
     far: number = this.player.body.width
   ) => {
+    if (!this.terrain.noise) return;
+
     const matrix = new THREE.Matrix4();
 
     // Reset temporary collision mesh
@@ -693,7 +702,6 @@ export default class Control {
       16
     );
     this.tempMesh.count = 0;
-
     // Track which blocks have been removed by player
     let removed = false;
     let treeRemoved = new Array<boolean>(
