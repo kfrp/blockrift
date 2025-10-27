@@ -21,22 +21,47 @@ const channelSubscribers = new Map<string, Set<WebSocket>>();
 // Task 1.1: Environment detection (development vs production)
 const isDevelopment = process.env.NODE_ENV !== "production";
 
+type Position = { x: number; y: number; z: number };
+type Rotation = { x: number; y: number };
+type Player = {
+  username: string;
+  position: Position;
+  rotation: Rotation;
+};
+type Block = {
+  x: number;
+  y: number;
+  z: number;
+  type?: number;
+  username: string;
+  timestamp: number;
+  placed: boolean;
+  removed?: boolean;
+};
+type ChunkBlock = {
+  x: number;
+  y: number;
+  z: number;
+  type: number;
+  username: string;
+  timestamp: number;
+};
 // Task 1.3: Session tracking for connected clients
 interface ConnectedClient {
-  ws: WebSocket;
   username: string;
-  sessionId: string;
   level: string; // Level/world identifier
   lastPositionUpdate: number;
-  position?: { x: number; y: number; z: number };
-  rotation?: { x: number; y: number; z: number };
+  position?: Position;
+  rotation?: Rotation;
 }
 
+// Track clients by username (not WebSocket connection)
 const connectedClients = new Map<string, ConnectedClient>();
 
 // Task 1.2: Random username generation for development
 function generateUsername(): string {
   const randomNum = Math.floor(Math.random() * 10000);
+  console.log("generated: " + randomNum);
   return `Player${randomNum}`;
 }
 
@@ -50,11 +75,6 @@ function assignUsername(): string {
     // For now, return a placeholder
     return "DevvitUser";
   }
-}
-
-// Generate unique session ID
-function generateSessionId(): string {
-  return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
 // Task 1b.1: Chunk coordinate calculation constants and helpers
@@ -138,16 +158,7 @@ async function getChunkBlocks(
   level: string,
   chunkX: number,
   chunkZ: number
-): Promise<
-  Array<{
-    x: number;
-    y: number;
-    z: number;
-    type: number;
-    username: string;
-    timestamp: number;
-  }>
-> {
+): Promise<Array<ChunkBlock>> {
   const chunkKey = getChunkKey(level, chunkX, chunkZ);
   const chunkData = await redisStore.hGetAll(chunkKey);
 
@@ -251,7 +262,7 @@ function hashString(str: string): number {
 export interface BlockModificationMessage {
   type: "block-modify";
   username: string;
-  position: { x: number; y: number; z: number };
+  position: Position;
   blockType: number | null; // null for removal, number for placement
   action: "place" | "remove";
   clientTimestamp: number;
@@ -266,18 +277,14 @@ export interface BlockModificationBroadcast extends BlockModificationMessage {
 interface PositionUpdateMessage {
   type: "player-position";
   username: string;
-  position: { x: number; y: number; z: number };
-  rotation: { x: number; y: number; z: number };
+  position: Position;
+  rotation: Rotation;
 }
 
 // Task 12: Batched position updates broadcast interface
 interface PositionUpdatesBroadcast {
   type: "player-positions";
-  players: Array<{
-    username: string;
-    position: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number };
-  }>;
+  players: Array<Player>;
 }
 
 /**
@@ -335,86 +342,10 @@ async function persistBlockModification(
 }
 
 /**
- * Task 6: Handle block modification from client
- * - Adds server timestamp (Requirement 3.5)
- * - Immediately broadcasts via Redis pub/sub (Requirement 3.3)
- * - Asynchronously persists to Redis (Requirement 3.4)
- */
-async function handleBlockModification(
-  data: BlockModificationMessage,
-  client: ConnectedClient
-): Promise<void> {
-  const { position, blockType, action, clientTimestamp, username } = data;
-  const level = client.level; // Get level from client
-
-  console.log(
-    `Received ${action} from ${username} at (${position.x}, ${position.y}, ${position.z}) in level "${level}"`
-  );
-
-  // Add server timestamp for conflict resolution (Requirement 3.5)
-  const serverTimestamp = Date.now();
-
-  const broadcastData: BlockModificationBroadcast = {
-    type: "block-modify",
-    username,
-    position,
-    blockType,
-    action,
-    clientTimestamp,
-    serverTimestamp,
-  };
-
-  // Immediately broadcast modification via Redis pub/sub (Requirement 3.3)
-  // Find which channel this client is subscribed to
-  let clientChannel: string | null = null;
-  for (const [channel, subscribers] of Array.from(
-    channelSubscribers.entries()
-  )) {
-    if (subscribers.has(client.ws)) {
-      clientChannel = channel;
-      break;
-    }
-  }
-
-  if (clientChannel) {
-    await realtime.send(clientChannel, broadcastData);
-    console.log(
-      `Broadcast ${action} to channel ${clientChannel} with server timestamp ${serverTimestamp}`
-    );
-  } else {
-    console.warn(
-      `Client ${username} not subscribed to any channel, cannot broadcast`
-    );
-  }
-
-  // Asynchronously persist to Redis (Requirement 3.4)
-  // Using setImmediate to not block the broadcast
-  setImmediate(async () => {
-    await persistBlockModification(level, data);
-  });
-}
-
-/**
- * Task 12: Handle position update from client
- * - Stores latest position for each connected client (Requirement 4.2)
- */
-function handlePositionUpdate(
-  data: PositionUpdateMessage,
-  client: ConnectedClient
-): void {
-  const { position, rotation } = data;
-
-  // Store latest position and rotation for this client
-  client.position = position;
-  client.rotation = rotation;
-  client.lastPositionUpdate = Date.now();
-}
-
-/**
- * Task 12: Broadcast position updates for all connected clients
- * - Called 10 times per second (Requirement 4.2, 11.2)
- * - Batches all player positions into single message (Requirement 11.2)
- * - Broadcasts via Redis pub/sub (Requirement 11.5)
+ * Broadcast position updates for all connected clients
+ * - Called 10 times per second
+ * - Batches all player positions by region
+ * - Broadcasts via Redis pub/sub
  */
 // Track last broadcast state to avoid sending duplicate data
 const lastBroadcastState = new Map<
@@ -423,43 +354,52 @@ const lastBroadcastState = new Map<
 >();
 
 async function broadcastPositionUpdates(): Promise<void> {
-  // Group clients by channel
-  const channelPlayers = new Map<
-    string,
-    Array<{
-      username: string;
-      position: { x: number; y: number; z: number };
-      rotation: { x: number; y: number; z: number };
-    }>
-  >();
+  const REGION_SIZE = 15;
+  const CHUNK_SIZE = 24;
+  const TIMEOUT_MS = 120000; // 120 seconds (2 minutes) - remove players who haven't updated
+  const now = Date.now();
 
-  // Collect all clients with their channels
-  for (const [channel, subscribers] of Array.from(
-    channelSubscribers.entries()
-  )) {
-    const players: Array<{
-      username: string;
-      position: { x: number; y: number; z: number };
-      rotation: { x: number; y: number; z: number };
-    }> = [];
-
-    for (const client of Array.from(connectedClients.values())) {
-      if (subscribers.has(client.ws) && client.position && client.rotation) {
-        players.push({
-          username: client.username,
-          position: client.position,
-          rotation: client.rotation,
-        });
-      }
-    }
-
-    if (players.length > 0) {
-      channelPlayers.set(channel, players);
+  // Remove stale players who haven't sent updates in a while
+  const staleUsernames: string[] = [];
+  for (const [username, client] of Array.from(connectedClients.entries())) {
+    if (now - client.lastPositionUpdate > TIMEOUT_MS) {
+      staleUsernames.push(username);
     }
   }
 
-  // Broadcast batched position updates to each channel (only if changed)
-  for (const [channel, players] of Array.from(channelPlayers.entries())) {
+  for (const username of staleUsernames) {
+    console.log(`Removing stale player ${username} (no updates for 2 minutes)`);
+    connectedClients.delete(username);
+  }
+
+  // Group players by region based on their position
+  const regionPlayers = new Map<string, Array<Player>>();
+
+  for (const client of Array.from(connectedClients.values())) {
+    // Always include players, use default position/rotation if not set
+    const position = client.position || { x: 0, y: 20, z: 0 };
+    const rotation = client.rotation || { x: 0, y: 0 };
+
+    // Calculate which region this player is in
+    const chunkX = Math.floor(position.x / CHUNK_SIZE);
+    const chunkZ = Math.floor(position.z / CHUNK_SIZE);
+    const regionX = Math.floor(chunkX / REGION_SIZE);
+    const regionZ = Math.floor(chunkZ / REGION_SIZE);
+    const channel = `region:${client.level}:${regionX}:${regionZ}`;
+
+    if (!regionPlayers.has(channel)) {
+      regionPlayers.set(channel, []);
+    }
+
+    regionPlayers.get(channel)!.push({
+      username: client.username,
+      position: position,
+      rotation: rotation,
+    });
+  }
+
+  // Broadcast batched position updates to each region (only if changed)
+  for (const [channel, players] of Array.from(regionPlayers.entries())) {
     // Check if this channel's data has changed since last broadcast
     const lastState = lastBroadcastState.get(channel) || new Map();
     let hasChanges = false;
@@ -471,7 +411,7 @@ async function broadcastPositionUpdates(): Promise<void> {
 
     for (const player of players) {
       const posKey = `${player.position.x},${player.position.y},${player.position.z}`;
-      const rotKey = `${player.rotation.x},${player.rotation.y},${player.rotation.z}`;
+      const rotKey = `${player.rotation.x},${player.rotation.y}`;
       currentState.set(player.username, { position: posKey, rotation: rotKey });
 
       const last = lastState.get(player.username);
@@ -519,24 +459,9 @@ export const realtime = {
   },
 };
 
-// Handle WebSocket connections
+// Handle WebSocket connections (for broadcast channel subscriptions only)
 wss.on("connection", (ws: WebSocket) => {
-  // Task 1.2 & 1.3: Assign username and create session
-  const username = assignUsername();
-  const sessionId = generateSessionId();
-
-  const client: ConnectedClient = {
-    ws,
-    username,
-    sessionId,
-    level: "default", // Will be updated when client subscribes
-    lastPositionUpdate: Date.now(),
-  };
-
-  connectedClients.set(sessionId, client);
-
-  console.log(`Client connected: ${username} (${sessionId})`);
-  console.log(`Environment: ${isDevelopment ? "development" : "production"}`);
+  console.log("WebSocket connected (broadcast channel)");
 
   ws.on("message", async (message: string) => {
     try {
@@ -544,14 +469,8 @@ wss.on("connection", (ws: WebSocket) => {
 
       if (msg.type === "subscribe") {
         const channel = msg.channel;
-        const level = msg.level || "default";
 
-        // Store level in client data
-        client.level = level;
-
-        console.log(
-          `Client ${username} subscribing to ${channel} (level: ${level})`
-        );
+        console.log(`Subscribing to channel: ${channel}`);
 
         // Add client to channel subscribers
         if (!channelSubscribers.has(channel)) {
@@ -563,9 +482,9 @@ wss.on("connection", (ws: WebSocket) => {
             const subscribers = channelSubscribers.get(channel);
 
             if (subscribers) {
-              subscribers.forEach((client) => {
-                if (client.readyState === WebSocket.OPEN) {
-                  client.send(JSON.stringify(data));
+              subscribers.forEach((clientWs) => {
+                if (clientWs.readyState === WebSocket.OPEN) {
+                  clientWs.send(JSON.stringify(data));
                 }
               });
             }
@@ -582,20 +501,12 @@ wss.on("connection", (ws: WebSocket) => {
           })
         );
 
-        // Broadcast player-joined event to existing clients
-        await realtime.send(channel, {
-          type: "player-joined",
-          username,
-          level,
-          position: client.position || { x: 0, y: 20, z: 0 },
-        });
-
-        console.log(`Client ${username} subscribed to ${channel}`);
+        console.log(`Subscribed to channel: ${channel}`);
       }
 
       if (msg.type === "unsubscribe") {
         const channel = msg.channel;
-        console.log(`Client ${username} unsubscribing from ${channel}`);
+        console.log(`Unsubscribing from channel: ${channel}`);
 
         const subscribers = channelSubscribers.get(channel);
         if (subscribers) {
@@ -615,79 +526,20 @@ wss.on("connection", (ws: WebSocket) => {
           })
         );
       }
-
-      // Task 2: Handle world state request
-      if (msg.type === "world-state-request") {
-        const { chunkX, chunkZ } = msg;
-        const level = client.level;
-        console.log(
-          `Client ${username} requesting world state for chunk (${chunkX}, ${chunkZ}) in level "${level}"`
-        );
-
-        // Get blocks for the requested chunk
-        const blocks = await getChunkBlocks(level, chunkX, chunkZ);
-
-        // Get all active players in the same level
-        const players = Array.from(connectedClients.values())
-          .filter((c) => c.sessionId !== sessionId && c.level === level) // Exclude requesting client and filter by level
-          .map((c) => ({
-            username: c.username,
-            position: c.position || { x: 0, y: 20, z: 0 },
-            rotation: { x: 0, y: 0, z: 0 }, // Default rotation
-          }));
-
-        // Send WorldStateResponse
-        ws.send(
-          JSON.stringify({
-            type: "world-state",
-            chunkX,
-            chunkZ,
-            blocks,
-            players,
-          })
-        );
-
-        console.log(
-          `Sent world state to ${username}: ${blocks.length} blocks, ${players.length} players`
-        );
-      }
-
-      // Task 6: Handle block modification
-      if (msg.type === "block-modify") {
-        await handleBlockModification(msg, client);
-      }
-
-      // Task 12: Handle position update
-      if (msg.type === "player-position") {
-        handlePositionUpdate(msg, client);
-      }
     } catch (error) {
-      console.error("Error handling message:", error);
+      console.error("Error handling WebSocket message:", error);
     }
   });
 
   ws.on("close", async () => {
-    console.log(`Client disconnected: ${username} (${sessionId})`);
+    console.log("WebSocket disconnected");
 
-    // Remove client from session tracking
-    connectedClients.delete(sessionId);
-
-    // Task 2: Broadcast player-left event to remaining clients
+    // Remove this WebSocket from all channel subscriptions
     channelSubscribers.forEach(async (subscribers, channel) => {
-      if (subscribers.has(ws)) {
-        await realtime.send(channel, {
-          type: "player-left",
-          username,
-        });
-        console.log(
-          `Broadcast player-left event for ${username} to ${channel}`
-        );
-      }
-
       subscribers.delete(ws);
       if (subscribers.size === 0) {
         channelSubscribers.delete(channel);
-        subscriber.unsubscribe(channel).catch(console.error);
+        await subscriber.unsubscribe(channel).catch(console.error);
       }
     });
   });
@@ -729,41 +581,35 @@ interface InitialConnectionResponse {
     stoneSeed: number;
     coalSeed: number;
   };
-  spawnPosition: { x: number; y: number; z: number };
+  spawnPosition: Position;
   initialChunks: Array<{
     chunkX: number;
     chunkZ: number;
-    blocks: Array<{
-      x: number;
-      y: number;
-      z: number;
-      type?: number;
-      username: string;
-      timestamp: number;
-      placed: boolean;
-      removed?: boolean;
-    }>;
+    blocks: Array<Block>;
   }>;
-  players: Array<{
-    username: string;
-    position: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number };
-  }>;
+  players: Array<Player>;
 }
 
 app.post("/api/connect", async (req, res) => {
   const { level } = req.body as InitialConnectionRequest;
   const actualLevel = level || "default";
 
-  // Generate username and session ID
-  const username = `Player${Math.floor(Math.random() * 10000)}`;
-  const sessionId = `session_${Date.now()}_${Math.random()
-    .toString(36)
-    .substring(7)}`;
+  // Generate username
+  const username = assignUsername();
 
   console.log(
     `HTTP connect request from ${username} for level "${actualLevel}"`
   );
+
+  // Add client to connected clients
+  const client: ConnectedClient = {
+    username,
+    level: actualLevel,
+    lastPositionUpdate: Date.now(),
+    position: { x: 0, y: 20, z: 0 },
+    rotation: { x: 0, y: 0 },
+  };
+  connectedClients.set(username, client);
 
   // Initialize and get terrain seeds
   await initializeTerrainSeeds(actualLevel);
@@ -837,7 +683,7 @@ app.post("/api/connect", async (req, res) => {
 
   const response: InitialConnectionResponse = {
     username,
-    sessionId,
+    sessionId: username, // Use username as sessionId for compatibility
     level: actualLevel,
     terrainSeeds,
     spawnPosition,
@@ -848,12 +694,32 @@ app.post("/api/connect", async (req, res) => {
   res.json(response);
 });
 
+// HTTP endpoint for disconnect
+interface DisconnectRequest {
+  username: string;
+  level: string;
+}
+
+app.post("/api/disconnect", async (req, res) => {
+  const { username, level } = req.body as DisconnectRequest;
+
+  console.log(`HTTP disconnect request from ${username} for level "${level}"`);
+
+  // Remove client from connected clients
+  connectedClients.delete(username);
+
+  // No need to broadcast - the next position update will naturally exclude this player
+  console.log(`Removed ${username} from connected clients`);
+
+  res.json({ ok: true });
+});
+
 // Task 2.1: Define interfaces for modification batch endpoint
 interface ModificationBatchRequest {
   username: string;
   level: string;
   modifications: Array<{
-    position: { x: number; y: number; z: number };
+    position: Position;
     blockType: number | null; // null for removal
     action: "place" | "remove";
     clientTimestamp: number;
@@ -870,7 +736,7 @@ interface ModificationBatchResponse {
 async function validateModification(
   level: string,
   mod: {
-    position: { x: number; y: number; z: number };
+    position: Position;
     blockType: number | null;
     action: "place" | "remove";
   }
@@ -883,7 +749,7 @@ async function validateModification(
 async function persistModificationBatch(
   level: string,
   modifications: Array<{
-    position: { x: number; y: number; z: number };
+    position: Position;
     blockType: number | null;
     action: "place" | "remove";
     username: string;
@@ -929,7 +795,7 @@ async function persistModificationBatch(
 // Task 2.4: Calculate regional channel from block position
 function getRegionalChannelFromPosition(
   level: string,
-  position: { x: number; y: number; z: number }
+  position: Position
 ): string {
   const { chunkX, chunkZ } = getChunkCoordinates(position.x, position.z);
   const regionX = Math.floor(chunkX / 5); // REGION_SIZE = 5
@@ -947,7 +813,7 @@ app.post("/api/modifications", async (req, res) => {
   );
 
   const validatedMods: Array<{
-    position: { x: number; y: number; z: number };
+    position: Position;
     blockType: number | null;
     action: "place" | "remove";
     username: string;
@@ -1026,16 +892,7 @@ interface ChunkStateResponse {
   chunks: Array<{
     chunkX: number;
     chunkZ: number;
-    blocks: Array<{
-      x: number;
-      y: number;
-      z: number;
-      type?: number;
-      username: string;
-      timestamp: number;
-      placed: boolean;
-      removed?: boolean;
-    }>;
+    blocks: Array<Block>;
   }>;
   requestTimestamp: number;
   responseTimestamp: number;
@@ -1083,16 +940,7 @@ app.post("/api/chunk-state", async (req, res) => {
   const chunkStates: Array<{
     chunkX: number;
     chunkZ: number;
-    blocks: Array<{
-      x: number;
-      y: number;
-      z: number;
-      type?: number;
-      username: string;
-      timestamp: number;
-      placed: boolean;
-      removed?: boolean;
-    }>;
+    blocks: Array<Block>;
   }> = [];
 
   for (let i = 0; i < validChunks.length; i++) {
@@ -1100,16 +948,7 @@ app.post("/api/chunk-state", async (req, res) => {
     const result = results?.[i];
 
     // Parse chunk data
-    const blocks: Array<{
-      x: number;
-      y: number;
-      z: number;
-      type?: number;
-      username: string;
-      timestamp: number;
-      placed: boolean;
-      removed?: boolean;
-    }> = [];
+    const blocks: Array<Block> = [];
 
     // Redis multi().exec() returns direct results, not [error, value] tuples
     if (result && typeof result === "object" && !Array.isArray(result)) {
@@ -1174,6 +1013,37 @@ app.post("/api/chunk-state", async (req, res) => {
 
   // Task 3.3: Send JSON response
   res.json(response);
+});
+
+// HTTP endpoint for position updates
+interface PositionUpdateRequest {
+  username: string;
+  position: Position;
+  rotation: Rotation;
+}
+
+app.post("/api/position", async (req, res) => {
+  const { username, position, rotation } = req.body as PositionUpdateRequest;
+
+  // Find the client by username
+  let client: ConnectedClient | undefined;
+  for (const c of Array.from(connectedClients.values())) {
+    if (c.username === username) {
+      client = c;
+      break;
+    }
+  }
+
+  if (!client) {
+    return res.status(404).json({ error: "Client not found" });
+  }
+
+  // Update client position
+  client.position = position;
+  client.rotation = rotation;
+  client.lastPositionUpdate = Date.now();
+
+  res.json({ ok: true });
 });
 
 // Example endpoint to send messages (for testing)

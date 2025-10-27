@@ -6,7 +6,6 @@ import UI from "./ui";
 import Audio from "./ui/audio";
 import MultiplayerManager from "./multiplayer";
 import * as THREE from "three";
-
 const core = new Core();
 const camera = core.camera;
 const scene = core.scene;
@@ -25,54 +24,58 @@ const multiplayer = new MultiplayerManager(scene, camera, terrain);
 const urlParams = new URLSearchParams(window.location.search);
 const level = urlParams.get("level") || "default";
 
-// Connect to multiplayer server
-multiplayer.connect(level).catch((error) => {
-  console.error("Failed to connect to multiplayer server:", error);
-});
-
 const control = new Control(scene, camera, player, terrain, audio, multiplayer);
 
-new UI(terrain, control);
+const ui = new UI(terrain, control);
+
+// Connect to multiplayer server
+multiplayer
+  .connect(level)
+  .then(() => {
+    // Update username label after connection
+    ui.setUsername(multiplayer.getUsername());
+  })
+  .catch((error) => {
+    console.error("Failed to connect to multiplayer server:", error);
+    ui.setUsername("Connection Failed");
+  });
 
 // Position update interval (10 times per second)
 // Only send updates when position or rotation has changed
 let lastSentPosition = camera.position.clone();
-let lastSentRotation = new THREE.Euler(
-  camera.rotation.x,
-  camera.rotation.y,
-  camera.rotation.z
-);
+let lastSentRotation = {
+  x: camera.rotation.x,
+  y: camera.rotation.y,
+};
 
 setInterval(() => {
   const currentPosition = camera.position;
-  const currentRotation = camera.rotation;
 
-  // Check if position changed (threshold: 0.1 units - about 1/10th of a block)
-  const positionChanged =
-    Math.abs(currentPosition.x - lastSentPosition.x) > 0.1 ||
-    Math.abs(currentPosition.y - lastSentPosition.y) > 0.1 ||
-    Math.abs(currentPosition.z - lastSentPosition.z) > 0.1;
+  // Calculate yaw from camera's forward direction vector
+  const direction = new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  const yaw = Math.atan2(direction.x, direction.z);
 
-  // Check if rotation changed (threshold: 0.05 radians - about 3 degrees)
+  const currentRotation = {
+    x: camera.rotation.x,
+    y: yaw,
+  };
+
+  const positionChanged = !currentPosition.equals(lastSentPosition);
+
+  // A more robust way to check for rotation changes
   const rotationChanged =
-    Math.abs(currentRotation.x - lastSentRotation.x) > 0.05 ||
-    Math.abs(currentRotation.y - lastSentRotation.y) > 0.05 ||
-    Math.abs(currentRotation.z - lastSentRotation.z) > 0.05;
+    Math.abs(currentRotation.y - lastSentRotation.y) > 0.05;
 
   // Only send update if something changed
   if (positionChanged || rotationChanged) {
-    multiplayer.sendPositionUpdate(
-      currentPosition,
-      new THREE.Euler(currentRotation.x, currentRotation.y, currentRotation.z)
-    );
+    // --- IMPROVEMENT ---
+    // Pass currentRotation directly since it's already a THREE.Euler object
+    multiplayer.sendPositionUpdate(currentPosition, currentRotation);
 
-    // Update last sent values
+    // Update last sent values using the efficient .copy() method
     lastSentPosition.copy(currentPosition);
-    lastSentRotation.set(
-      currentRotation.x,
-      currentRotation.y,
-      currentRotation.z
-    );
+    lastSentRotation = currentRotation;
   }
 }, 100);
 

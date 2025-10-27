@@ -2,72 +2,79 @@
 
 export interface RealtimeConnection {
   channel: string;
-  ws: WebSocket;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
 }
 
 interface ConnectRealtimeOptions {
   channel: string;
-  level?: string; // Optional level identifier for separate game worlds
   onConnect?: (channel: string) => void;
   onDisconnect?: (channel: string) => void;
   onMessage?: (data: any) => void;
 }
 
-export async function connectRealtime(
-  options: ConnectRealtimeOptions
-): Promise<RealtimeConnection> {
-  const { channel, level, onConnect, onDisconnect, onMessage } = options;
+// Shared WebSocket connection for all channels
+let sharedWs: WebSocket | null = null;
+let wsConnecting: Promise<WebSocket> | null = null;
+const channelHandlers = new Map<string, Set<(data: any) => void>>();
+const channelConnectCallbacks = new Map<
+  string,
+  Set<(channel: string) => void>
+>();
+const channelDisconnectCallbacks = new Map<
+  string,
+  Set<(channel: string) => void>
+>();
 
-  return new Promise((resolve, reject) => {
+async function getSharedWebSocket(): Promise<WebSocket> {
+  if (sharedWs && sharedWs.readyState === WebSocket.OPEN) {
+    return sharedWs;
+  }
+
+  if (wsConnecting) {
+    return wsConnecting;
+  }
+
+  wsConnecting = new Promise((resolve, reject) => {
     const ws = new WebSocket("ws://localhost:3000");
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
-
-      // Subscribe to channel with optional level
-      ws.send(
-        JSON.stringify({
-          type: "subscribe",
-          channel,
-          level: level || "default", // Default level if not specified
-        })
-      );
+      console.log("Shared WebSocket connected");
+      sharedWs = ws;
+      wsConnecting = null;
+      resolve(ws);
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        console.log(msg);
-        if (msg.type === "subscribed") {
-          console.log(`Connected to ${msg.channel}`);
-          onConnect?.(msg.channel);
 
-          // Resolve the promise with the connection object
-          resolve({
-            channel: msg.channel,
-            ws,
-            disconnect: () => {
-              ws.send(
-                JSON.stringify({
-                  type: "unsubscribe",
-                  channel: msg.channel,
-                })
-              );
-            },
-          });
+        // Determine which channel this message is for
+        let targetChannel: string | null = null;
 
-          // Also pass the connected message to onMessage handler
-          onMessage?.(msg);
-        } else if (msg.type === "disconnected") {
-          console.log(`Disconnected from ${msg.channel}`);
-          onDisconnect?.(msg.channel);
-        } else if (msg.type === "message") {
-          onMessage?.(msg.data);
+        if (msg.type === "subscribed" || msg.type === "disconnected") {
+          targetChannel = msg.channel;
+        } else if (msg.channel) {
+          targetChannel = msg.channel;
         } else {
-          // Pass all other message types directly to onMessage handler
-          // This includes: block-modify, player-positions, player-joined, player-left, etc.
-          onMessage?.(msg);
+          // Broadcast to all channels
+          for (const handlers of channelHandlers.values()) {
+            handlers.forEach((handler) => handler(msg));
+          }
+          return;
+        }
+
+        // Call appropriate handlers for this channel
+        if (targetChannel) {
+          if (msg.type === "subscribed") {
+            const callbacks = channelConnectCallbacks.get(targetChannel);
+            callbacks?.forEach((cb) => cb(targetChannel));
+          } else if (msg.type === "disconnected") {
+            const callbacks = channelDisconnectCallbacks.get(targetChannel);
+            callbacks?.forEach((cb) => cb(targetChannel));
+          } else {
+            const handlers = channelHandlers.get(targetChannel);
+            handlers?.forEach((handler) => handler(msg));
+          }
         }
       } catch (error) {
         console.error("Error parsing message:", error);
@@ -76,12 +83,80 @@ export async function connectRealtime(
 
     ws.onerror = (error) => {
       console.error("WebSocket error:", error);
+      wsConnecting = null;
       reject(error);
     };
 
     ws.onclose = () => {
       console.log("WebSocket closed");
-      onDisconnect?.(channel);
+      sharedWs = null;
+      wsConnecting = null;
+
+      // Notify all channels of disconnection
+      for (const [channel, callbacks] of channelDisconnectCallbacks.entries()) {
+        callbacks.forEach((cb) => cb(channel));
+      }
     };
   });
+
+  return wsConnecting;
+}
+
+export async function connectRealtime(
+  options: ConnectRealtimeOptions
+): Promise<RealtimeConnection> {
+  const { channel, onConnect, onDisconnect, onMessage } = options;
+
+  // Get or create shared WebSocket
+  const ws = await getSharedWebSocket();
+
+  // Register handlers for this channel
+  if (!channelHandlers.has(channel)) {
+    channelHandlers.set(channel, new Set());
+  }
+  if (onMessage) {
+    channelHandlers.get(channel)!.add(onMessage);
+  }
+
+  if (!channelConnectCallbacks.has(channel)) {
+    channelConnectCallbacks.set(channel, new Set());
+  }
+  if (onConnect) {
+    channelConnectCallbacks.get(channel)!.add(onConnect);
+  }
+
+  if (!channelDisconnectCallbacks.has(channel)) {
+    channelDisconnectCallbacks.set(channel, new Set());
+  }
+  if (onDisconnect) {
+    channelDisconnectCallbacks.get(channel)!.add(onDisconnect);
+  }
+
+  // Subscribe to channel via WebSocket
+  ws.send(
+    JSON.stringify({
+      type: "subscribe",
+      channel,
+    })
+  );
+
+  return {
+    channel,
+    disconnect: async () => {
+      // Unsubscribe from channel via WebSocket
+      if (sharedWs && sharedWs.readyState === WebSocket.OPEN) {
+        sharedWs.send(
+          JSON.stringify({
+            type: "unsubscribe",
+            channel,
+          })
+        );
+      }
+
+      // Remove handlers for this channel
+      channelHandlers.delete(channel);
+      channelConnectCallbacks.delete(channel);
+      channelDisconnectCallbacks.delete(channel);
+    },
+  };
 }

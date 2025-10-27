@@ -1,5 +1,6 @@
 /** PlayerEntityRenderer - Renders and animates voxel-based player characters **/
 import * as THREE from "three";
+import { Rotation } from "./multiplayer";
 
 /**
  * PlayerEntityRenderer - Handles rendering and animation of voxel player characters
@@ -61,17 +62,29 @@ export default class PlayerEntityRenderer {
   public update(deltaTime: number): void {
     // Always interpolate rotation smoothly
     const lerpFactor = Math.min(deltaTime * 10, 1.0);
-    this.group.rotation.y = THREE.MathUtils.lerp(
-      this.group.rotation.y,
-      this.targetRotation.y,
-      lerpFactor
-    );
 
-    // Always interpolate position smoothly (XZ only, Y is handled externally)
+    // Handle angle wrapping: ensure target is within ±π of current angle
+    let targetY = this.targetRotation.y;
+    let currentY = this.group.rotation.y;
+    let diff = targetY - currentY;
+
+    // Normalize the difference to [-π, π]
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+
+    // Interpolate using the normalized difference
+    this.group.rotation.y = currentY + diff * lerpFactor;
+
+    // Always interpolate position smoothly
     const positionLerpFactor = Math.min(deltaTime * 12, 1.0);
     this.group.position.x = THREE.MathUtils.lerp(
       this.group.position.x,
       this.targetPosition.x,
+      positionLerpFactor
+    );
+    this.group.position.y = THREE.MathUtils.lerp(
+      this.group.position.y,
+      this.targetPosition.y,
       positionLerpFactor
     );
     this.group.position.z = THREE.MathUtils.lerp(
@@ -294,9 +307,20 @@ export default class PlayerEntityRenderer {
   /**
    * Set target state for interpolation
    */
-  public setTargetState(position: THREE.Vector3, rotation: THREE.Euler): void {
+  public setTargetState(
+    position: THREE.Vector3,
+    rotation: Rotation,
+    username: string
+  ): void {
+    console.log(
+      username,
+      "rotation.y:",
+      rotation.y,
+      "current:",
+      this.group.rotation.y
+    );
     this.targetPosition.copy(position);
-    this.targetRotation.copy(rotation);
+    this.targetRotation.y = rotation.y;
   }
 
   /**

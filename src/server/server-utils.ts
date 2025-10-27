@@ -2,7 +2,7 @@
 // These functions are used by the main server and can be tested independently
 
 const CHUNK_SIZE = 24; // Matches client-side chunk system
-const REGION_SIZE = 5; // 5x5 chunks per region
+const REGION_SIZE = 15; // 5x5 chunks per region
 
 /**
  * Generate random username for development

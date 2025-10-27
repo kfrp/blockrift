@@ -1,6 +1,5 @@
 /** Multiplayer Manager - Handles all multiplayer synchronization **/
 import * as THREE from "three";
-import { connectRealtime, RealtimeConnection } from "./realtime";
 import Terrain, { BlockType } from "./terrain";
 import Block from "./mesh/block";
 import PlayerEntityRenderer from "./playerEntityRenderer";
@@ -13,7 +12,7 @@ interface PlayerEntity {
   username: string;
   renderer: PlayerEntityRenderer;
 }
-
+export type Rotation = { x: number; y: number };
 /**
  * Chunk state data received from server
  */
@@ -45,13 +44,6 @@ interface BlockModificationMessage {
   serverTimestamp?: number;
 }
 
-interface PositionUpdateMessage {
-  type: "player-position";
-  username: string;
-  position: { x: number; y: number; z: number };
-  rotation: { x: number; y: number; z: number };
-}
-
 interface PositionUpdatesBroadcast {
   type: "player-positions";
   players: Array<{
@@ -59,17 +51,6 @@ interface PositionUpdatesBroadcast {
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number };
   }>;
-}
-
-interface PlayerJoinedMessage {
-  type: "player-joined";
-  username: string;
-  position: { x: number; y: number; z: number };
-}
-
-interface PlayerLeftMessage {
-  type: "player-left";
-  username: string;
 }
 
 /**
@@ -82,13 +63,14 @@ interface PlayerLeftMessage {
  * - Position update broadcasting and interpolation
  */
 export default class MultiplayerManager {
-  private connection: RealtimeConnection | null = null;
   private username: string = "";
   private players: Map<string, PlayerEntity> = new Map();
+  private playerLastSeen: Map<string, number> = new Map(); // Track when we last saw each player
   private terrain: Terrain;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private chunkStateManager: ChunkStateManager;
+  private cleanupInterval: number | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -114,7 +96,6 @@ export default class MultiplayerManager {
       });
 
       const data = await response.json();
-      console.log("data", data);
       this.setUsername(data.username);
 
       // Apply terrain seeds
@@ -145,35 +126,47 @@ export default class MultiplayerManager {
             if (playerData.rotation) {
               const player = this.players.get(playerData.username);
               if (player) {
-                const rotation = new THREE.Euler(
-                  playerData.rotation.x,
-                  playerData.rotation.y,
-                  playerData.rotation.z
+                const rotation = {
+                  x: playerData.rotation.x,
+                  y: playerData.rotation.y,
+                };
+                player.renderer.setTargetState(
+                  position,
+                  rotation,
+                  this.username
                 );
-                player.renderer.setTargetState(position, rotation);
               }
             }
           }
         }
       }
 
-      // Step 2: Connect to WebSocket for broadcasts
-      // Use level-specific channel to prevent cross-level player visibility
-      const gameChannel = `game-channel:${level}`;
+      // Set connection info in chunk state manager
+      this.chunkStateManager.setConnection(data.username, level);
 
-      this.connection = await connectRealtime({
-        channel: gameChannel,
-        level: level,
-        onConnect: () => {
-          this.handleConnected(data, level);
-        },
-        onDisconnect: () => {
-          this.handleDisconnect();
-        },
-        onMessage: (broadcastData) => {
-          this.handleMessage(broadcastData);
-        },
-      });
+      // Subscribe to initial regional channels based on spawn position
+      if (data.spawnPosition) {
+        const spawnChunkX = Math.floor(
+          data.spawnPosition.x / this.terrain.chunkSize
+        );
+        const spawnChunkZ = Math.floor(
+          data.spawnPosition.z / this.terrain.chunkSize
+        );
+
+        await this.chunkStateManager.updateSubscriptions(
+          spawnChunkX,
+          spawnChunkZ,
+          (broadcastData) => this.handleMessage(broadcastData)
+        );
+      }
+
+      // Sync offline modifications on connect
+      this.chunkStateManager.syncOfflineModifications();
+
+      // Start cleanup interval for stale players
+      this.cleanupInterval = window.setInterval(() => {
+        this.cleanupStalePlayers();
+      }, 5000); // Check every 5 seconds
     } catch (error) {
       console.error("MultiplayerManager: Failed to connect", error);
       throw error;
@@ -183,13 +176,30 @@ export default class MultiplayerManager {
   /**
    * Disconnect from the multiplayer server
    */
-  disconnect(): void {
-    // Call chunkStateManager.flushBatch before disconnect
-    this.chunkStateManager.flushBatch();
+  async disconnect(): Promise<void> {
+    // Stop cleanup interval
+    if (this.cleanupInterval !== null) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
 
-    if (this.connection) {
-      this.connection.disconnect();
-      this.connection = null;
+    // Call chunkStateManager.flushBatch before disconnect
+    await this.chunkStateManager.flushBatch();
+
+    // Notify server of disconnect via HTTP
+    if (this.username) {
+      try {
+        await fetch("http://localhost:3000/api/disconnect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: this.username,
+            level: this.chunkStateManager.getLevel(),
+          }),
+        });
+      } catch (error) {
+        console.error("MultiplayerManager: Failed to send disconnect", error);
+      }
     }
 
     // Clean up all player entities
@@ -197,9 +207,10 @@ export default class MultiplayerManager {
       this.removePlayerEntity(username);
     }
     this.players.clear();
+    this.playerLastSeen.clear();
 
-    // Call chunkStateManager.clear in disconnect method
-    this.chunkStateManager.clear();
+    // Call chunkStateManager.clear and disconnect all channels
+    await this.chunkStateManager.clear();
   }
 
   /**
@@ -224,10 +235,6 @@ export default class MultiplayerManager {
       console.warn("MultiplayerManager: Received invalid message", data);
       return;
     }
-    if (!this.connection) {
-      setTimeout(() => this.handleMessage(data), 500);
-      return;
-    }
     switch (data.type) {
       case "block-modify":
         this.handleBlockModification(data as BlockModificationMessage);
@@ -235,53 +242,9 @@ export default class MultiplayerManager {
       case "player-positions":
         this.handlePositionUpdates(data as PositionUpdatesBroadcast);
         break;
-      case "player-joined":
-        this.handlePlayerJoined(data as PlayerJoinedMessage);
-        break;
-      case "player-left":
-        this.handlePlayerLeft(data as PlayerLeftMessage);
-        break;
       default:
         return;
     }
-  }
-
-  /**
-   * Handle WebSocket connection confirmation
-   * This is called after the WebSocket connects, but initial data has already been processed
-   */
-  private handleConnected(data: any, level: string): void {
-    if (!this.connection) {
-      setTimeout(() => this.handleConnected(data, level), 500);
-      return;
-    }
-
-    // Set connection in chunk state manager for regional subscriptions
-    this.chunkStateManager.setConnection(
-      this.connection!,
-      data.username,
-      level
-    );
-
-    // Subscribe to initial regional channels
-    // Calculate spawn chunk coordinates from spawn position
-    if (data.spawnPosition) {
-      const spawnChunkX = Math.floor(
-        data.spawnPosition.x / this.terrain.chunkSize
-      );
-      const spawnChunkZ = Math.floor(
-        data.spawnPosition.z / this.terrain.chunkSize
-      );
-      // Call chunkStateManager.updateSubscriptions with spawn chunk
-      this.chunkStateManager.updateSubscriptions(spawnChunkX, spawnChunkZ);
-    }
-
-    // Sync offline modifications on connect
-    this.chunkStateManager.syncOfflineModifications();
-
-    console.log(
-      "MultiplayerManager: WebSocket connected and subscriptions initialized"
-    );
   }
 
   /**
@@ -346,7 +309,7 @@ export default class MultiplayerManager {
     );
 
     // Requirement 6.1, 6.2, 6.3: Check for conflicts with local modifications
-    const conflict = this.detectConflict(position, data);
+    const conflict = this.detectConflict(position);
     if (conflict) {
       // Requirement 6.5, 10.1: Log conflicts for monitoring
       console.warn(
@@ -383,8 +346,7 @@ export default class MultiplayerManager {
    * Requirement 6.1: Check if same position was modified locally
    */
   private detectConflict(
-    position: THREE.Vector3,
-    data: BlockModificationMessage
+    position: THREE.Vector3
   ): { localTimestamp: number; localUsername: string } | null {
     // Check if we have a local modification at this position
     for (const customBlock of this.terrain.customBlocks) {
@@ -558,43 +520,13 @@ export default class MultiplayerManager {
   }
 
   /**
-   * Handle single position update from a player
-   * Requirement 4.3: Update player entity position
-   */
-  private handlePositionUpdate(data: PositionUpdateMessage): void {
-    // Extract username, position, and rotation from message
-    const { username, position, rotation } = data;
-
-    // Ignore updates from self
-    if (username === this.username) {
-      return;
-    }
-
-    // Find player entity in players map
-    const player = this.players.get(username);
-    if (!player) {
-      console.warn(
-        `MultiplayerManager: Received position update for unknown player: ${username}`
-      );
-      return;
-    }
-
-    // Call player.renderer.setTargetState with new position and rotation
-    const targetPosition = new THREE.Vector3(
-      position.x,
-      position.y,
-      position.z
-    );
-    const targetRotation = new THREE.Euler(rotation.x, rotation.y, rotation.z);
-    player.renderer.setTargetState(targetPosition, targetRotation);
-  }
-
-  /**
    * Handle batched position updates for all players
-   * Requirements: 4.3, 11.1
+   * Updates or creates player entities from the broadcast
    */
   private handlePositionUpdates(data: PositionUpdatesBroadcast): void {
-    // Iterate through players array in message
+    const now = Date.now();
+
+    // Update or create players from the broadcast
     for (const playerData of data.players) {
       const { username, position, rotation } = playerData;
 
@@ -603,15 +535,27 @@ export default class MultiplayerManager {
         continue;
       }
 
-      // Find player entity in players map
-      const player = this.players.get(username);
+      // Mark that we've seen this player
+      this.playerLastSeen.set(username, now);
+
+      // Find or create player entity
+      let player = this.players.get(username);
       if (!player) {
-        // Player not yet in our map - they may have just joined
-        // This will be handled by player-joined event
-        continue;
+        // Player not in our map - create them
+        const playerPosition = new THREE.Vector3(
+          position.x,
+          position.y,
+          position.z
+        );
+        this.createPlayerEntity(username, playerPosition);
+        player = this.players.get(username);
+
+        if (!player) continue; // Safety check
+
+        console.log(`MultiplayerManager: Player ${username} appeared`);
       }
 
-      // Call setTargetState for each player's renderer
+      // Update player position and rotation
       const targetPosition = new THREE.Vector3(
         position.x,
         position.y,
@@ -622,85 +566,35 @@ export default class MultiplayerManager {
         rotation.y,
         rotation.z
       );
-      player.renderer.setTargetState(targetPosition, targetRotation);
-    }
-  }
-
-  /**
-   * Handle player joined event
-   * Requirements: 4.5, 7.3
-   */
-  private handlePlayerJoined(data: PlayerJoinedMessage): void {
-    const { username, position } = data;
-
-    // Ignore if this is our own username
-    if (username === this.username) {
-      console.log(
-        "MultiplayerManager: Ignoring player-joined for self:",
-        username
+      player.renderer.setTargetState(
+        targetPosition,
+        targetRotation,
+        this.username
       );
-      return;
     }
-
-    // Check if player already exists (shouldn't happen, but handle gracefully)
-    if (this.players.has(username)) {
-      console.warn(
-        `MultiplayerManager: Player ${username} already exists, skipping creation`
-      );
-      return;
-    }
-
-    // Create new PlayerEntityRenderer when player joins
-    const playerPosition = new THREE.Vector3(
-      position.x,
-      position.y,
-      position.z
-    );
-    this.createPlayerEntity(username, playerPosition);
-
-    console.log(
-      `MultiplayerManager: Player ${username} joined at position (${position.x}, ${position.y}, ${position.z})`
-    );
   }
 
   /**
-   * Handle player left event
-   * Requirements: 4.5, 7.3
+   * Clean up players we haven't seen in any broadcast for a while
+   * Called periodically to remove stale players
    */
-  private handlePlayerLeft(data: PlayerLeftMessage): void {
-    const { username } = data;
+  private cleanupStalePlayers(): void {
+    const now = Date.now();
+    const STALE_TIMEOUT = 10000; // 10 seconds - if we haven't seen a player in any broadcast
 
-    // Ignore if this is our own username
-    if (username === this.username) {
-      return;
+    for (const [username, lastSeen] of Array.from(
+      this.playerLastSeen.entries()
+    )) {
+      if (now - lastSeen > STALE_TIMEOUT) {
+        const player = this.players.get(username);
+        if (player) {
+          console.log(`MultiplayerManager: Removing stale player ${username}`);
+          this.disposePlayerEntity(player);
+          this.removePlayerEntity(username);
+        }
+        this.playerLastSeen.delete(username);
+      }
     }
-
-    // Check if player exists
-    if (!this.players.has(username)) {
-      return;
-    }
-
-    // Remove player entity and cleanup resources when player leaves
-    const player = this.players.get(username);
-    if (player) {
-      // Dispose of all meshes and materials properly
-      this.disposePlayerEntity(player);
-    }
-
-    // Remove from players map
-    this.removePlayerEntity(username);
-
-    console.log(`MultiplayerManager: Player ${username} left the game`);
-  }
-
-  /**
-   * Handle disconnection from server
-   */
-  private handleDisconnect(): void {
-    // TODO: Implement reconnection logic in task 16
-    console.log(
-      "MultiplayerManager: Disconnected, reconnection not yet implemented"
-    );
   }
 
   /**
@@ -711,7 +605,7 @@ export default class MultiplayerManager {
     blockType: BlockType | null,
     action: "place" | "remove"
   ): void {
-    if (!this.connection || !this.username) {
+    if (!this.username) {
       console.warn(
         "MultiplayerManager: Cannot send block modification, not connected"
       );
@@ -731,15 +625,17 @@ export default class MultiplayerManager {
   }
 
   /**
-   * Send position update to server
+   * Send position update to server via HTTP
    */
-  sendPositionUpdate(position: THREE.Vector3, rotation: THREE.Euler): void {
-    if (!this.connection || !this.username) {
+  async sendPositionUpdate(
+    position: THREE.Vector3,
+    rotation: Rotation
+  ): Promise<void> {
+    if (!this.username) {
       return;
     }
 
-    const message: PositionUpdateMessage = {
-      type: "player-position",
+    const body = {
       username: this.username,
       position: {
         x: Math.round(position.x * 100) / 100, // Round to 2 decimal places
@@ -747,14 +643,17 @@ export default class MultiplayerManager {
         z: Math.round(position.z * 100) / 100,
       },
       rotation: {
-        x: Math.round(rotation.x * 100) / 100,
-        y: Math.round(rotation.y * 100) / 100,
-        z: Math.round(rotation.z * 100) / 100,
+        x: rotation.x,
+        y: rotation.y,
       },
     };
 
     try {
-      this.connection.ws.send(JSON.stringify(message));
+      await fetch("http://localhost:3000/api/position", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     } catch (error) {
       console.error(
         "MultiplayerManager: Failed to send position update",
@@ -769,8 +668,9 @@ export default class MultiplayerManager {
   private createPlayerEntity(
     username: string,
     position: THREE.Vector3
-  ): PlayerEntity {
+  ): PlayerEntity | undefined {
     // Instantiate PlayerEntityRenderer
+    if (username === this.username) return;
     const renderer = new PlayerEntityRenderer(username, position);
 
     // Add renderer.group to scene
@@ -852,7 +752,7 @@ export default class MultiplayerManager {
    */
   update(delta: number): void {
     // Iterate through all players in the map
-    for (const [username, player] of this.players) {
+    for (const player of this.players.values()) {
       // Call player.renderer.update(deltaTime) for each player
       player.renderer.update(delta);
 
@@ -867,13 +767,6 @@ export default class MultiplayerManager {
       const distanceToCamera = this.camera.position.distanceTo(
         player.renderer.group.position
       );
-
-      // Debug: log distance for very close players
-      if (distanceToCamera < 5) {
-        console.log(
-          `Player ${username} distance: ${distanceToCamera.toFixed(2)}`
-        );
-      }
 
       // Scale down players when they are very close to camera (within 5 blocks)
       // This prevents giant body parts from blocking the view

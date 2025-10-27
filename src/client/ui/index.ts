@@ -14,6 +14,11 @@ export default class UI {
     this.crossHair.innerHTML = "+";
     document.body.appendChild(this.crossHair);
 
+    // Create username label
+    this.usernameLabel.className = "username-label";
+    this.usernameLabel.innerHTML = "Connecting...";
+    document.body.appendChild(this.usernameLabel);
+
     // play
     this.play?.addEventListener("click", () => {
       if (this.play?.innerHTML === "Play") {
@@ -139,6 +144,7 @@ export default class UI {
 
   menu = document.querySelector(".menu");
   crossHair = document.createElement("div");
+  usernameLabel = document.createElement("div");
 
   // buttons
   play = document.querySelector("#play");
@@ -215,5 +221,9 @@ export default class UI {
     setTimeout(() => {
       this.loadModal?.classList.add("hidden");
     }, 1350);
+  };
+
+  setUsername = (username: string) => {
+    this.usernameLabel.innerHTML = username;
   };
 }

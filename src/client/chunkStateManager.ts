@@ -1,5 +1,5 @@
 import Block from "./mesh/block";
-import { RealtimeConnection } from "./realtime";
+import { RealtimeConnection, connectRealtime } from "./realtime";
 
 /**
  * Represents a loaded chunk with its blocks and metadata
@@ -76,7 +76,7 @@ export class ChunkStateManager {
   /**
    * Size of a region in chunks (5x5 chunks per region)
    */
-  private readonly REGION_SIZE = 5;
+  private readonly REGION_SIZE = 15;
 
   // ===== DERIVED CONFIGURATION =====
 
@@ -104,9 +104,9 @@ export class ChunkStateManager {
   private level: string = "";
 
   /**
-   * WebSocket connection for pub/sub subscriptions
+   * Map of active regional channel connections
    */
-  private connection: RealtimeConnection | null = null;
+  private activeConnections: Map<string, RealtimeConnection> = new Map();
 
   /**
    * Creates a new ChunkStateManager
@@ -162,19 +162,6 @@ export class ChunkStateManager {
       regionX: Math.floor(chunkX / this.REGION_SIZE),
       regionZ: Math.floor(chunkZ / this.REGION_SIZE),
     };
-  }
-
-  /**
-   * Generates the regional pub/sub channel name for a given chunk
-   * The channel is based on the region containing the chunk
-   *
-   * @param chunkX - The X coordinate of the chunk
-   * @param chunkZ - The Z coordinate of the chunk
-   * @returns A channel string in the format "region:${level}:${regionX}:${regionZ}"
-   */
-  private getRegionalChannel(chunkX: number, chunkZ: number): string {
-    const { regionX, regionZ } = this.getRegionCoordinates(chunkX, chunkZ);
-    return `region:${this.level}:${regionX}:${regionZ}`;
   }
 
   // ===== CHUNK LOADING METHODS =====
@@ -346,18 +333,13 @@ export class ChunkStateManager {
    *
    * @param playerChunkX - The X coordinate of the player's current chunk
    * @param playerChunkZ - The Z coordinate of the player's current chunk
+   * @param onMessage - Callback for handling messages from subscribed channels
    */
   async updateSubscriptions(
     playerChunkX: number,
-    playerChunkZ: number
+    playerChunkZ: number,
+    onMessage: (data: any) => void
   ): Promise<void> {
-    if (!this.connection) {
-      console.warn(
-        "ChunkStateManager: Cannot update subscriptions - no connection"
-      );
-      return;
-    }
-
     const requiredRegions = this.getRequiredRegions(playerChunkX, playerChunkZ);
     const requiredKeys = new Set(
       requiredRegions.map(({ regionX, regionZ }) =>
@@ -368,20 +350,14 @@ export class ChunkStateManager {
     // Unsubscribe from regions no longer needed
     for (const regionKey of this.subscribedRegions) {
       if (!requiredKeys.has(regionKey)) {
-        const [regionX, regionZ] = regionKey.split("_").map(Number);
-        const channel = `region:${this.level}:${regionX}:${regionZ}`;
-
-        this.connection.ws.send(
-          JSON.stringify({
-            type: "unsubscribe",
-            channel,
-          })
-        );
+        const connection = this.activeConnections.get(regionKey);
+        if (connection) {
+          await connection.disconnect();
+          this.activeConnections.delete(regionKey);
+        }
 
         this.subscribedRegions.delete(regionKey);
-        logInfo(
-          `ChunkStateManager: Unsubscribed from region (${regionX}, ${regionZ})`
-        );
+        logInfo(`ChunkStateManager: Unsubscribed from region ${regionKey}`);
       }
     }
 
@@ -392,14 +368,18 @@ export class ChunkStateManager {
       if (!this.subscribedRegions.has(regionKey)) {
         const channel = `region:${this.level}:${regionX}:${regionZ}`;
 
-        this.connection.ws.send(
-          JSON.stringify({
-            type: "subscribe",
-            channel,
-            level: this.level,
-          })
-        );
+        const connection = await connectRealtime({
+          channel,
+          onConnect: (ch) => {
+            logInfo(`ChunkStateManager: Connected to ${ch}`);
+          },
+          onDisconnect: (ch) => {
+            logInfo(`ChunkStateManager: Disconnected from ${ch}`);
+          },
+          onMessage,
+        });
 
+        this.activeConnections.set(regionKey, connection);
         this.subscribedRegions.add(regionKey);
         logInfo(
           `ChunkStateManager: Subscribed to region (${regionX}, ${regionZ})`
@@ -595,18 +575,12 @@ export class ChunkStateManager {
   // ===== LIFECYCLE METHODS =====
 
   /**
-   * Sets the connection and user context for the chunk state manager
+   * Sets the user context for the chunk state manager
    *
-   * @param connection - The WebSocket connection for pub/sub
    * @param username - The current player's username
    * @param level - The current game level/world identifier
    */
-  setConnection(
-    connection: RealtimeConnection,
-    username: string,
-    level: string
-  ): void {
-    this.connection = connection;
+  setConnection(username: string, level: string): void {
     this.username = username;
     this.level = level;
     logInfo(
@@ -615,10 +589,24 @@ export class ChunkStateManager {
   }
 
   /**
+   * Gets the current level
+   */
+  getLevel(): string {
+    return this.level;
+  }
+
+  /**
    * Clears all state from the chunk state manager
    * Called on disconnect or when resetting the game state
    */
-  clear(): void {
+  async clear(): Promise<void> {
+    // Disconnect all active regional connections
+    for (const [regionKey, connection] of this.activeConnections.entries()) {
+      await connection.disconnect();
+      logInfo(`ChunkStateManager: Disconnected from region ${regionKey}`);
+    }
+    this.activeConnections.clear();
+
     this.loadedChunks.clear();
     this.subscribedRegions.clear();
     this.pendingRequests.clear();
