@@ -3,6 +3,16 @@ import * as THREE from "three";
 import { Rotation } from "./multiplayer";
 
 /**
+ * PlayerColors - Defines the configurable colors for a player character
+ */
+export interface PlayerColors {
+  hair: THREE.Color | string | number;
+  skin: THREE.Color | string | number;
+  shirt: THREE.Color | string | number;
+  shorts: THREE.Color | string | number;
+}
+
+/**
  * PlayerEntityRenderer - Handles rendering and animation of voxel player characters
  *
  * This class creates a voxel-based humanoid character with procedural animation
@@ -12,12 +22,12 @@ import { Rotation } from "./multiplayer";
 export default class PlayerEntityRenderer {
   // === Voxel Mesh ===
   public group: THREE.Group;
-  public head: THREE.Mesh;
+  public head: THREE.Group; // Changed to Group to include hair and eyes
   public torso: THREE.Mesh;
-  public leftArm: THREE.Mesh;
-  public rightArm: THREE.Mesh;
-  public leftLeg: THREE.Mesh;
-  public rightLeg: THREE.Mesh;
+  public leftArm: THREE.Group; // Changed to Group for sleeved arms
+  public rightArm: THREE.Group; // Changed to Group for sleeved arms
+  public leftLeg: THREE.Group; // Changed to Group for shorts
+  public rightLeg: THREE.Group; // Changed to Group for shorts
   public label: THREE.Sprite;
 
   // === State for Interpolation & Responsiveness ===
@@ -32,16 +42,49 @@ export default class PlayerEntityRenderer {
 
   // === Animation Properties ===
   private walkTime: number = 0; // Timer for leg/arm swing cycle
+  private headBaseY: number = 1.7; // Base Y position for the head for animations
 
-  constructor(username: string, initialPosition: THREE.Vector3) {
-    // Initialize body part references (will be set in buildVoxelCharacter)
-    // These MUST be initialized before buildVoxelCharacter is called
-    this.head = new THREE.Mesh();
+  constructor(
+    username: string,
+    initialPosition: THREE.Vector3,
+    colors?: Partial<PlayerColors>
+  ) {
+    // Generate a random skin tone between light and dark
+    const skinHue = 0.07 + Math.random() * 0.03; // ~25-36 degrees
+    const skinSaturation = 0.6 + Math.random() * 0.3; // 0.6 - 0.9
+    const skinLightness = 0.5 + Math.random() * 0.3; // 0.5 - 0.8
+    const randomSkinColor = new THREE.Color().setHSL(
+      skinHue,
+      skinSaturation,
+      skinLightness
+    );
+
+    // Generate a random natural hair color (from black to blond via red/brown)
+    const hairHue = Math.random() * 0.1; // Range from red (0) to orange-yellow (0.1)
+    const hairSaturation = 0.5 + Math.random() * 0.4; // Saturation from 0.5 to 0.9 for richness
+    const hairLightness = 0.2 + Math.random() * 0.6; // Lightness from dark (0.2) to light (0.8)
+    const randomHairColor = new THREE.Color().setHSL(
+      hairHue,
+      hairSaturation,
+      hairLightness
+    );
+
+    // Define default colors with randomization
+    const finalColors: PlayerColors = {
+      hair: randomHairColor,
+      skin: randomSkinColor,
+      shirt: new THREE.Color().setHSL(Math.random(), 0.8, 0.6), // Random vibrant color
+      shorts: new THREE.Color().setHSL(Math.random(), 0.8, 0.5), // Random vibrant color
+      ...colors,
+    };
+
+    // Initialize body part references
+    this.head = new THREE.Group();
     this.torso = new THREE.Mesh();
-    this.leftArm = new THREE.Mesh();
-    this.rightArm = new THREE.Mesh();
-    this.leftLeg = new THREE.Mesh();
-    this.rightLeg = new THREE.Mesh();
+    this.leftArm = new THREE.Group();
+    this.rightArm = new THREE.Group();
+    this.leftLeg = new THREE.Group();
+    this.rightLeg = new THREE.Group();
     this.label = new THREE.Sprite();
 
     // Initialize target state
@@ -51,8 +94,8 @@ export default class PlayerEntityRenderer {
     // Initialize ground state tracking
     this.lastGroundY = initialPosition.y;
 
-    // Build the voxel character (this will set the body part references)
-    this.group = this.buildVoxelCharacter(username);
+    // Build the voxel character
+    this.group = this.buildVoxelCharacter(username, finalColors);
     this.group.position.copy(initialPosition);
   }
 
@@ -103,9 +146,9 @@ export default class PlayerEntityRenderer {
       this.targetPosition.z
     );
     const distance = currentXZ.distanceTo(targetXZ);
-    const positionChanged = distance > 0.05; // Increased threshold for more reliable detection
+    const positionChanged = distance > 0.05;
 
-    // Step C: Detect Ground State (position stable for 0.2s)
+    // Detect Ground State
     const yPositionChange = Math.abs(this.targetPosition.y - this.lastGroundY);
     if (yPositionChange < 0.01) {
       this.positionStableTime += deltaTime;
@@ -118,7 +161,7 @@ export default class PlayerEntityRenderer {
       this.isGrounded = false;
     }
 
-    // Step D: Detect Jump
+    // Detect Jump
     if (this.isGrounded && this.targetPosition.y > this.lastGroundY + 0.5) {
       this.isJumping = true;
     } else if (this.isGrounded) {
@@ -133,9 +176,8 @@ export default class PlayerEntityRenderer {
    * Apply walking or idle animations based on movement state
    */
   private applyAnimations(deltaTime: number, isMoving: boolean): void {
-    // Jump animation takes priority over walk/idle
     if (this.isJumping) {
-      // Jump animation: arms slightly tucked, legs straight
+      // Jump animation
       this.leftArm.rotation.x = THREE.MathUtils.lerp(
         this.leftArm.rotation.x,
         -0.3,
@@ -148,116 +190,135 @@ export default class PlayerEntityRenderer {
       );
       this.leftLeg.rotation.x = 0;
       this.rightLeg.rotation.x = 0;
-      this.head.position.y = 1.6;
-      return; // Skip walk/idle animations
+      this.head.position.y = this.headBaseY;
+      return;
     }
 
     if (isMoving) {
-      // Walking animation: sinusoidal arm and leg swing
-      // Increment walkTime by deltaTime * 10
+      // Walking animation
       this.walkTime += deltaTime * 10;
+      const swingAngle = Math.sin(this.walkTime) * 0.8;
+      this.leftArm.rotation.x = swingAngle;
+      this.rightArm.rotation.x = -swingAngle;
+      this.leftLeg.rotation.x = -swingAngle;
+      this.rightLeg.rotation.x = swingAngle;
 
-      // Apply arm swing: leftArm.rotation.x = Math.sin(walkTime) * 0.8
-      this.leftArm.rotation.x = Math.sin(this.walkTime) * 0.8;
-
-      // Apply opposite arm swing: rightArm.rotation.x = Math.sin(walkTime + Math.PI) * 0.8
-      this.rightArm.rotation.x = Math.sin(this.walkTime + Math.PI) * 0.8;
-
-      // Apply leg swing: leftLeg.rotation.x = Math.sin(walkTime + Math.PI) * 0.8
-      this.leftLeg.rotation.x = Math.sin(this.walkTime + Math.PI) * 0.8;
-
-      // Apply opposite leg swing: rightLeg.rotation.x = Math.sin(walkTime) * 0.8
-      this.rightLeg.rotation.x = Math.sin(this.walkTime) * 0.8;
-
-      // Apply head bob: head.position.y = 1.6 + Math.abs(Math.sin(walkTime * 0.5)) * 0.1
+      // Head bob
       this.head.position.y =
-        1.6 + Math.abs(Math.sin(this.walkTime * 0.5)) * 0.1;
+        this.headBaseY + Math.abs(Math.sin(this.walkTime * 0.5)) * 0.08;
     } else {
-      // Idle animation: return to rest position
-      // DON'T reset walkTime - keep it so animation continues from same phase
-      // This prevents the "same leg forward" issue when stopping and starting
-
-      // Lerp leftArm.rotation.x toward 0 with factor 0.1
+      // Idle animation: return to rest
       this.leftArm.rotation.x = THREE.MathUtils.lerp(
         this.leftArm.rotation.x,
         0,
         0.1
       );
-
-      // Lerp rightArm.rotation.x toward 0 with factor 0.1
       this.rightArm.rotation.x = THREE.MathUtils.lerp(
         this.rightArm.rotation.x,
         0,
         0.1
       );
-
-      // Lerp leftLeg.rotation.x toward 0 with factor 0.1
       this.leftLeg.rotation.x = THREE.MathUtils.lerp(
         this.leftLeg.rotation.x,
         0,
         0.1
       );
-
-      // Lerp rightLeg.rotation.x toward 0 with factor 0.1
       this.rightLeg.rotation.x = THREE.MathUtils.lerp(
         this.rightLeg.rotation.x,
         0,
         0.1
       );
 
-      // Set head.position.y to 1.6 (rest position)
-      this.head.position.y = 1.6;
+      // Reset head position
+      this.head.position.y = THREE.MathUtils.lerp(
+        this.head.position.y,
+        this.headBaseY,
+        0.1
+      );
     }
   }
 
   /**
-   * Build the voxel character structure
+   * Build the voxel character structure with distinct parts and colors
    */
-  private buildVoxelCharacter(username: string): THREE.Group {
+  private buildVoxelCharacter(
+    username: string,
+    colors: PlayerColors
+  ): THREE.Group {
     const group = new THREE.Group();
-    const color = this.hashStringToColor(username);
-    const material = new THREE.MeshStandardMaterial({ color });
 
-    // Torso (main body) - 0.6x1.2x0.4 units at position (0, 1.2, 0)
-    const torsoGeometry = new THREE.BoxGeometry(0.6, 1.2, 0.4);
-    this.torso = new THREE.Mesh(torsoGeometry, material);
-    this.torso.position.set(0, 1.2, 0);
+    // Create materials from the color configuration
+    const skinMaterial = new THREE.MeshStandardMaterial({ color: colors.skin });
+    const shirtMaterial = new THREE.MeshStandardMaterial({
+      color: colors.shirt,
+    });
+    const shortsMaterial = new THREE.MeshStandardMaterial({
+      color: colors.shorts,
+    });
+    const hairMaterial = new THREE.MeshStandardMaterial({ color: colors.hair });
+    const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x00a0a0 });
+
+    // Torso (Shirt)
+    const torsoGeometry = new THREE.BoxGeometry(0.7, 0.6, 0.35);
+    this.torso = new THREE.Mesh(torsoGeometry, shirtMaterial);
+    this.torso.position.set(0, 1.1, 0); // Positioned above legs
     group.add(this.torso);
 
-    // Head - 0.5x0.5x0.5 units at position (0, 1.6, 0)
-    const headGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    this.head = new THREE.Mesh(headGeometry, material);
-    this.head.position.set(0, 1.6, 0);
+    // Head Group (Head, Hair, Eyes)
+    this.head = new THREE.Group();
+    this.head.position.set(0, this.headBaseY, 0); // Base position for animations
+
+    const headBlock = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.6, 0.6),
+      skinMaterial
+    );
+    this.head.add(headBlock);
+
+    // Hair
+    const mainHair = new THREE.Mesh(
+      new THREE.BoxGeometry(0.65, 0.25, 0.65),
+      hairMaterial
+    );
+    mainHair.position.y = 0.3; // On top of head
+    this.head.add(mainHair);
+    const frontHair = new THREE.Mesh(
+      new THREE.BoxGeometry(0.65, 0.15, 0.1),
+      hairMaterial
+    );
+    // Position on the front of the face (+Z)
+    frontHair.position.set(0, 0.2, 0.28);
+    this.head.add(frontHair);
+
+    // Eyes
+    const eyeGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.05);
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    // Position on the front of the face (+Z)
+    leftEye.position.set(-0.15, 0.05, 0.3);
+    this.head.add(leftEye);
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    // Position on the front of the face (+Z)
+    rightEye.position.set(0.15, 0.05, 0.3);
+    this.head.add(rightEye);
     group.add(this.head);
 
-    // Left Arm - 0.3x0.8x0.3 units at position (-0.4, 1.2, 0)
-    // Pivot at shoulder (top)
-    const armGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3);
-    this.leftArm = new THREE.Mesh(armGeometry.clone(), material);
-    this.leftArm.position.set(-0.4, 1.2, 0);
-    this.leftArm.geometry.translate(0, -0.4, 0); // Move pivot to top
+    // Arms (Sleeved)
+    const armPivotY = 1.4; // Shoulder height
+    const armX = 0.475; // Distance from center
+    this.leftArm = this.createArm(shirtMaterial, skinMaterial);
+    this.leftArm.position.set(-armX, armPivotY, 0);
     group.add(this.leftArm);
-
-    // Right Arm - 0.3x0.8x0.3 units at position (0.4, 1.2, 0)
-    // Pivot at shoulder (top)
-    this.rightArm = new THREE.Mesh(armGeometry.clone(), material);
-    this.rightArm.position.set(0.4, 1.2, 0);
-    this.rightArm.geometry.translate(0, -0.4, 0); // Move pivot to top
+    this.rightArm = this.createArm(shirtMaterial, skinMaterial);
+    this.rightArm.position.set(armX, armPivotY, 0);
     group.add(this.rightArm);
 
-    // Left Leg - 0.3x0.8x0.3 units at position (-0.2, 0.6, 0)
-    // Pivot at hip (top)
-    const legGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3);
-    this.leftLeg = new THREE.Mesh(legGeometry.clone(), material);
-    this.leftLeg.position.set(-0.2, 0.6, 0);
-    this.leftLeg.geometry.translate(0, -0.4, 0); // Move pivot to top
+    // Legs (with Shorts)
+    const legPivotY = 0.8; // Hip height
+    const legX = 0.18; // Distance from center
+    this.leftLeg = this.createLeg(shortsMaterial, skinMaterial);
+    this.leftLeg.position.set(-legX, legPivotY, 0);
     group.add(this.leftLeg);
-
-    // Right Leg - 0.3x0.8x0.3 units at position (0.2, 0.6, 0)
-    // Pivot at hip (top)
-    this.rightLeg = new THREE.Mesh(legGeometry.clone(), material);
-    this.rightLeg.position.set(0.2, 0.6, 0);
-    this.rightLeg.geometry.translate(0, -0.4, 0); // Move pivot to top
+    this.rightLeg = this.createLeg(shortsMaterial, skinMaterial);
+    this.rightLeg.position.set(legX, legPivotY, 0);
     group.add(this.rightLeg);
 
     // Username label
@@ -267,40 +328,68 @@ export default class PlayerEntityRenderer {
     return group;
   }
 
+  /** Helper method to create a sleeved arm */
+  private createArm(
+    sleeveMaterial: THREE.Material,
+    skinMaterial: THREE.Material
+  ): THREE.Group {
+    const armGroup = new THREE.Group();
+    const upperArm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.3, 0.25),
+      sleeveMaterial
+    );
+    upperArm.position.y = -0.15;
+    const lowerArm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.3, 0.25),
+      skinMaterial
+    );
+    lowerArm.position.y = -0.45;
+    armGroup.add(upperArm);
+    armGroup.add(lowerArm);
+    return armGroup;
+  }
+
+  /** Helper method to create a leg with shorts */
+  private createLeg(
+    shortsMaterial: THREE.Material,
+    skinMaterial: THREE.Material
+  ): THREE.Group {
+    const legGroup = new THREE.Group();
+    const upperLeg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.4, 0.25),
+      shortsMaterial
+    );
+    upperLeg.position.y = -0.2;
+    const lowerLeg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.4, 0.25),
+      skinMaterial
+    );
+    lowerLeg.position.y = -0.6;
+    legGroup.add(upperLeg);
+    legGroup.add(lowerLeg);
+    return legGroup;
+  }
+
   /**
    * Create a username label sprite
    */
   private createUsernameLabel(username: string): THREE.Sprite {
-    // Create canvas element (256x64 pixels)
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d")!;
     canvas.width = 256;
     canvas.height = 64;
-
-    // Draw semi-transparent black background (rgba(0, 0, 0, 0.6))
     context.fillStyle = "rgba(0, 0, 0, 0.6)";
     context.fillRect(0, 0, 256, 64);
-
-    // Draw username text in white, bold 32px Arial, centered
     context.fillStyle = "white";
     context.font = "bold 32px Arial";
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText(username, 128, 32);
-
-    // Create THREE.CanvasTexture from canvas
     const texture = new THREE.CanvasTexture(canvas);
-
-    // Create THREE.Sprite with texture
     const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
     const sprite = new THREE.Sprite(spriteMaterial);
-
-    // Scale sprite to 2x0.5 units
     sprite.scale.set(2, 0.5, 1);
-
-    // Position sprite at y=2.5 (above head)
-    sprite.position.y = 2.5;
-
+    sprite.position.y = 2.5; // Positioned above head
     return sprite;
   }
 
@@ -312,25 +401,7 @@ export default class PlayerEntityRenderer {
     rotation: Rotation,
     username: string
   ): void {
-    console.log(
-      username,
-      "rotation.y:",
-      rotation.y,
-      "current:",
-      this.group.rotation.y
-    );
     this.targetPosition.copy(position);
     this.targetRotation.y = rotation.y;
-  }
-
-  /**
-   * Generate consistent color from username
-   */
-  private hashStringToColor(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return hash & 0x00ffffff;
   }
 }

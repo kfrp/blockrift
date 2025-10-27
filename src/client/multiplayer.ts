@@ -689,43 +689,41 @@ export default class MultiplayerManager {
 
   /**
    * Dispose of all resources for a player entity
-   * Properly cleans up meshes, geometries, materials, and textures
+   * Properly cleans up meshes, geometries, materials, and textures by traversing the object tree.
    */
   private disposePlayerEntity(player: PlayerEntity): void {
     const renderer = player.renderer;
 
-    // Dispose of all body part meshes
-    const bodyParts = [
-      renderer.head,
-      renderer.torso,
-      renderer.leftArm,
-      renderer.rightArm,
-      renderer.leftLeg,
-      renderer.rightLeg,
-    ];
-
-    for (const mesh of bodyParts) {
-      if (mesh.geometry) {
-        mesh.geometry.dispose();
-      }
-      if (mesh.material) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((mat) => mat.dispose());
-        } else {
-          mesh.material.dispose();
+    // Helper function to recursively dispose of an object and its children
+    const disposeRecursive = (object: THREE.Object3D) => {
+      // Dispose of the object itself if it's a mesh
+      if (object instanceof THREE.Mesh) {
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
+        if (object.material) {
+          // Handle both single and arrays of materials
+          if (Array.isArray(object.material)) {
+            object.material.forEach((material) => material.dispose());
+          } else {
+            object.material.dispose();
+          }
         }
       }
-    }
+      // Recursively dispose of children
+      object.children.forEach(disposeRecursive);
+    };
 
-    // Dispose of username label sprite
-    if (renderer.label) {
-      if (renderer.label.material) {
-        // Dispose of the texture used by the sprite
-        if (renderer.label.material.map) {
-          renderer.label.material.map.dispose();
-        }
-        renderer.label.material.dispose();
-      }
+    // Start disposal from the main group
+    disposeRecursive(renderer.group);
+
+    // Specifically handle the label's texture, as it's not a standard mesh material
+    if (
+      renderer.label &&
+      renderer.label.material &&
+      renderer.label.material.map
+    ) {
+      renderer.label.material.map.dispose();
     }
 
     console.log(
@@ -747,35 +745,42 @@ export default class MultiplayerManager {
   }
 
   /**
-   * Update loop - called every frame for interpolation
-   * Requirements: 4.3, 11.1
+   * Update loop - called every frame for interpolation and visual effects.
    */
   update(delta: number): void {
-    // Iterate through all players in the map
+    // Helper function to recursively set opacity on all meshes in an object
+    const setOpacityRecursive = (object: THREE.Object3D, opacity: number) => {
+      if (object instanceof THREE.Mesh) {
+        const material = object.material as THREE.MeshStandardMaterial;
+        // Ensure material exists and has an opacity property
+        if (material && typeof material.opacity !== "undefined") {
+          material.transparent = opacity < 1.0;
+          material.opacity = opacity;
+        }
+      }
+      // Recurse through all children
+      for (const child of object.children) {
+        setOpacityRecursive(child, opacity);
+      }
+    };
+
     for (const player of this.players.values()) {
-      // Call player.renderer.update(deltaTime) for each player
       player.renderer.update(delta);
 
-      // Adjust player position so feet are on the ground
-      // The targetPosition is the camera/eye position, which is ~1.6 units above feet
-      // So we offset the group down by 1.6 to place feet on the ground
       const EYE_HEIGHT = 1.6;
       player.renderer.group.position.y =
         player.renderer.targetPosition.y - EYE_HEIGHT;
 
-      // Calculate distance from camera to player (using adjusted position)
       const distanceToCamera = this.camera.position.distanceTo(
         player.renderer.group.position
       );
 
-      // Scale down players when they are very close to camera (within 5 blocks)
-      // This prevents giant body parts from blocking the view
-      const minScaleDistance = 0.5; // Start scaling at 0.5 blocks
-      const maxScaleDistance = 5.0; // Normal scale at 5 blocks
+      // Scale down players when they are very close to the camera
+      const minScaleDistance = 0.5;
+      const maxScaleDistance = 5.0;
       let scale = 1.0;
 
       if (distanceToCamera < maxScaleDistance) {
-        // Scale from 0.3 to 1.0 based on distance
         scale = Math.max(
           0.3,
           0.3 +
@@ -783,16 +788,14 @@ export default class MultiplayerManager {
               (maxScaleDistance - minScaleDistance)
         );
       }
-
       player.renderer.group.scale.setScalar(scale);
 
-      // Reduce opacity when player is very close to camera (within 3 blocks)
-      const minOpacityDistance = 0.5; // Start fading at 0.5 blocks
-      const maxOpacityDistance = 3.0; // Full opacity at 3 blocks
+      // Reduce opacity when player is very close to the camera
+      const minOpacityDistance = 0.5;
+      const maxOpacityDistance = 3.0;
       let opacity = 1.0;
 
       if (distanceToCamera < maxOpacityDistance) {
-        // Linear fade from 0.2 to 1.0 based on distance
         opacity = Math.max(
           0.2,
           0.2 +
@@ -801,30 +804,15 @@ export default class MultiplayerManager {
         );
       }
 
-      // Apply opacity to all body parts
-      const bodyParts = [
-        player.renderer.head,
-        player.renderer.torso,
-        player.renderer.leftArm,
-        player.renderer.rightArm,
-        player.renderer.leftLeg,
-        player.renderer.rightLeg,
-      ];
+      // Apply opacity to all meshes in the player model recursively
+      setOpacityRecursive(player.renderer.group, opacity);
 
-      for (const mesh of bodyParts) {
-        if (mesh.material) {
-          const material = mesh.material as THREE.MeshStandardMaterial;
-          material.transparent = true;
-          material.opacity = opacity;
-        }
-      }
-
-      // Also apply opacity to username label
+      // Also apply opacity to the username label sprite
       if (player.renderer.label.material) {
         player.renderer.label.material.opacity = opacity;
       }
 
-      // Ensure username label sprite always faces camera using lookAt
+      // Ensure username label always faces the camera
       player.renderer.label.lookAt(this.camera.position);
     }
   }
