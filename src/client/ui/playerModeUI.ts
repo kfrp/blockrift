@@ -54,8 +54,11 @@ export default class PlayerModeUI {
 
     container.innerHTML = `
       <div class="builders-list-header">
-        <span class="builders-count">Builders: 0</span>
-        <span class="builders-toggle">▼</span>
+        <div class="builders-header-info">
+          <span class="players-online">Players Online: 0</span>
+          <span class="builders-count">Builders: 0</span>
+        </div>
+        <span class="builders-toggle" style="opacity:0.2">▼</span>
       </div>
       <div class="builders-list-content">
         <div class="builders-list-scroll"></div>
@@ -170,14 +173,23 @@ export default class PlayerModeUI {
   /**
    * Update builders list
    */
-  updateBuildersList(): void {
+  updateBuildersList(playerCount?: number): void {
     const builders = this.builderRecognitionManager.getBuilders();
     const highlightedBuilder =
       this.builderRecognitionManager.getHighlightedBuilder();
     const currentUsername = this.playerModeManager.getUsername();
     const friends = this.playerModeManager.getFriends();
 
-    // Update count in header
+    // Update player count in header
+    if (playerCount !== undefined) {
+      const playersOnlineEl =
+        this.buildersListContainer.querySelector(".players-online");
+      if (playersOnlineEl) {
+        playersOnlineEl.textContent = `Players Online: ${playerCount}`;
+      }
+    }
+
+    // Update builders count in header
     const countEl = this.buildersListContainer.querySelector(".builders-count");
     if (countEl) {
       countEl.textContent = `Builders: ${builders.length}`;
@@ -491,6 +503,13 @@ export default class PlayerModeUI {
       messageEl.innerHTML = "";
       messageEl.className = "friends-message";
     }, 3000);
+  }
+
+  /**
+   * Check if currently in viewer mode
+   */
+  isViewerMode(): boolean {
+    return this.playerModeManager.isViewerMode();
   }
 
   /**

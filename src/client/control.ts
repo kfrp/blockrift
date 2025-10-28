@@ -369,6 +369,12 @@ export default class Control {
       return;
     }
 
+    // Don't allow block modifications in viewer mode
+    if (!this.multiplayer.getPlayerModeManager().canModifyBlocks()) {
+      console.warn("Block modifications not allowed in viewer mode");
+      return;
+    }
+
     e.preventDefault();
 
     // Get the intersection result directly from the highlight system.

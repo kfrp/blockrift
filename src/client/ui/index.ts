@@ -18,9 +18,9 @@ export default class UI {
     this.crossHair.innerHTML = "+";
     document.body.appendChild(this.crossHair);
 
-    // Create username label
+    // Create username label (initially empty, will be set after connection)
     this.usernameLabel.className = "username-label";
-    this.usernameLabel.innerHTML = "Connecting...";
+    this.usernameLabel.innerHTML = "";
     document.body.appendChild(this.usernameLabel);
 
     // play
@@ -184,12 +184,22 @@ export default class UI {
     this.play && (this.play.innerHTML = "Resume");
     this.crossHair.classList.remove("hidden");
     this.feature?.classList.add("hidden");
+
+    // Hide the big viewer mode notification when entering gameplay
+    if (this.playerModeUI) {
+      this.playerModeUI.hideViewerModeNotification();
+    }
   };
 
   onPause = () => {
     /*    this.menu?.classList.remove("hidden");
     this.crossHair.classList.add("hidden");
     this.save && (this.save.innerHTML = "Save and Exit");*/
+
+    // Show the big viewer mode notification when returning to menu
+    if (this.playerModeUI && this.playerModeUI.isViewerMode()) {
+      this.playerModeUI.showViewerModeNotification();
+    }
   };
 
   onExit = () => {
@@ -197,6 +207,11 @@ export default class UI {
     this.play && (this.play.innerHTML = "Play");
     this.save && (this.save.innerHTML = "Load Game");
     this.feature?.classList.remove("hidden");
+
+    // Show the big viewer mode notification when returning to menu
+    if (this.playerModeUI && this.playerModeUI.isViewerMode()) {
+      this.playerModeUI.showViewerModeNotification();
+    }
   };
 
   onSave = () => {
@@ -231,6 +246,14 @@ export default class UI {
     this.usernameLabel.innerHTML = username;
   };
 
+  updateUsernameLabel = (username: string, isViewerMode: boolean) => {
+    if (isViewerMode) {
+      this.usernameLabel.innerHTML = `<span style="color: #ff6b6b; font-weight: bold;">VIEWER</span> | ${username}`;
+    } else {
+      this.usernameLabel.innerHTML = username;
+    }
+  };
+
   /**
    * Initialize player mode UI after multiplayer connection
    */
@@ -246,16 +269,22 @@ export default class UI {
       upvoteManager
     );
 
-    // Show viewer mode notification if in viewer mode
+    // Show viewer mode notification if in viewer mode (only in menu)
     if (playerModeManager.isViewerMode()) {
       this.playerModeUI.showViewerModeNotification();
+      // Update username label to show viewer mode indicator
+      const username = playerModeManager.getUsername();
+      this.updateUsernameLabel(username, true);
     }
+
+    // Update UI with initial player count from connection
+    this.playerModeUI.updateBuildersList(multiplayer.getPlayerCount());
 
     // Set up UI update callback in multiplayer manager
     multiplayer.setUIUpdateCallback(() => {
       if (this.playerModeUI) {
         this.playerModeUI.updateFriendsList();
-        this.playerModeUI.updateBuildersList();
+        this.playerModeUI.updateBuildersList(multiplayer.getPlayerCount());
       }
     });
 

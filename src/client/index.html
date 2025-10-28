@@ -22,19 +22,20 @@
       }
       * {
         touch-action: none;
+        font-size: 11px;
       }
 
       @font-face {
         font-family: Minecraft;
-        src: url(/assets/mc-font.otf);
+        src: url(/assets/press.ttf);
         font-display: swap;
       }
 
       .start {
-        background-image: url(/assets/menu.png);
+        background-image: url(/assets/menu2.png);
         background-repeat: no-repeat;
-        background-size: contain;
-        background-position: center;
+        background-size: cover;
+        background-position: top;
       }
 
       .start #exit {
@@ -61,31 +62,20 @@
       }
 
       .button {
-        width: 300px;
-        margin-bottom: 15px;
+        width: 200px;
+        margin-bottom: 25px;
         padding: 10px;
         display: inline-block;
-
         font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
         font-size: 1.2rem;
         color: white;
-        background-color: #727272;
+        background-color: #2c78b3;
         cursor: pointer;
-
         border-left: 2px solid #a4a4a4;
         border-top: 2px solid #a4a4a4;
         border-bottom: 2px solid #545655;
         border-right: 2px solid #545655;
-        box-shadow: 0 0 0 2px black;
-      }
-
-      .button:hover {
-        background-color: #218306;
-        border-left: 2px solid #17cd07;
-        border-top: 2px solid #17cd07;
-        border-bottom: 2px solid #004e00;
-        border-right: 2px solid #004e00;
-        box-shadow: 0 0 0 2px white;
+        box-shadow: 0 0 0 2px #787074;
       }
 
       .footer {
@@ -96,6 +86,11 @@
         opacity: 75%;
         transform: translate(-50%, -100%);
         font-family: sans-serif;
+      }
+      .button:hover {
+        background-color: #1d4770;
+
+        box-shadow: 0 0 0 2px #cbb6af;
       }
 
       .fps {
@@ -361,6 +356,17 @@
 
       .builders-list-header:hover {
         background-color: hsla(0, 0%, 25%, 0.9);
+      }
+
+      .builders-header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .players-online {
+        font-size: 0.85rem;
+        color: #17cd07;
       }
 
       .builders-count {
@@ -652,9 +658,9 @@
 
       .viewer-mode-notification {
         position: fixed;
-        top: 50%;
+        top: 10px;
         left: 50%;
-        transform: translate(-50%, -50%);
+        transform: translateX(-50%);
         z-index: 200;
 
         background-color: #8b0000;
@@ -817,14 +823,227 @@
       .chat-text {
         color: #ffffff;
       }
+
+      /* Loading Screen Styles */
+      .loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: #1c1c1c;
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .loading-content {
+        text-align: center;
+      }
+
+      .loading-text {
+        font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+        font-size: 2rem;
+        color: white;
+        margin-bottom: 30px;
+        text-shadow: 3px 3px 0px #000;
+      }
+
+      .loading-spinner {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .spinner-block {
+        width: 20px;
+        height: 20px;
+        background-color: #2c78b3;
+        border-left: 2px solid #a4a4a4;
+        border-top: 2px solid #a4a4a4;
+        border-bottom: 2px solid #545655;
+        border-right: 2px solid #545655;
+        box-shadow: 0 0 0 2px #787074;
+        animation: bounce 0.6s infinite alternate;
+      }
+
+      .spinner-block:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+
+      .spinner-block:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+
+      @keyframes bounce {
+        from {
+          transform: translateY(0px);
+        }
+        to {
+          transform: translateY(-15px);
+        }
+      }
+
+      .loading-screen.hidden {
+        display: none;
+      }
+
+      /* Connection Loading Bar Styles */
+      .connection-loading-bar {
+        width: 200px;
+        margin-bottom: 25px;
+        text-align: center;
+      }
+
+      .loading-bar-text {
+        font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+        font-size: 1rem;
+        color: white;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 0px #000;
+      }
+
+      .loading-bar-container {
+        width: 200px;
+        height: 20px;
+        background-color: #3a3a3a;
+        border-left: 2px solid #545655;
+        border-top: 2px solid #545655;
+        border-bottom: 2px solid #a4a4a4;
+        border-right: 2px solid #a4a4a4;
+        box-shadow: 0 0 0 2px #787074;
+        overflow: hidden;
+      }
+
+      .loading-bar-fill {
+        height: 100%;
+        width: 0%;
+        background-color: #218306;
+        border-right: 2px solid #17cd07;
+        animation: loadingPulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes loadingPulse {
+        0% {
+          width: 0%;
+          background-color: #218306;
+        }
+        50% {
+          width: 100%;
+          background-color: #17cd07;
+        }
+        100% {
+          width: 0%;
+          background-color: #218306;
+        }
+      }
+
+      .connection-loading-bar.hidden {
+        display: none;
+      }
+
+      /* Error Modal Styles */
+      .error-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .error-modal-content {
+        width: 400px;
+        padding: 30px;
+        background-color: #727272;
+        border-left: 3px solid #a4a4a4;
+        border-top: 3px solid #a4a4a4;
+        border-bottom: 3px solid #545655;
+        border-right: 3px solid #545655;
+        box-shadow: 0 0 0 3px black;
+        text-align: center;
+      }
+
+      .error-modal-title {
+        font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+        font-size: 1.5rem;
+        color: #ff6b6b;
+        margin-bottom: 20px;
+        text-shadow: 2px 2px 0px #000;
+      }
+
+      .error-modal-message {
+        font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+        font-size: 1.1rem;
+        color: white;
+        margin-bottom: 25px;
+        line-height: 1.6;
+      }
+
+      .error-retry-btn,
+      .error-close-btn {
+        margin-bottom: 0;
+      }
+
+      .error-modal.hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <script type="module" src="./main.ts"></script>
-    <div class="menu start" style="padding-top: 400px">
-      <button id="play" class="button">Play</button>
-      <button id="setting" class="button">Setting</button>
-      <button id="feature" class="button">Guide</button>
+
+    <!-- Loading Screen Overlay -->
+    <div class="loading-screen">
+      <div class="loading-content">
+        <div class="loading-text">Loading...</div>
+        <div class="loading-spinner">
+          <div class="spinner-block"></div>
+          <div class="spinner-block"></div>
+          <div class="spinner-block"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connection Error Modal -->
+    <div class="error-modal connection-error hidden">
+      <div class="error-modal-content">
+        <div class="error-modal-title">Connection Failed</div>
+        <div class="error-modal-message">
+          Could not connect to the game server.<br />Try again.
+        </div>
+        <button class="button error-retry-btn">Retry</button>
+      </div>
+    </div>
+
+    <!-- Authentication Error Modal -->
+    <div class="error-modal auth-error hidden">
+      <div class="error-modal-content">
+        <div class="error-modal-title">Authentication Required</div>
+        <div class="error-modal-message">Please log in to play</div>
+        <button class="button error-close-btn">Close</button>
+      </div>
+    </div>
+
+    <div class="menu start">
+      <img src="/assets/title6.png" width="500" style="padding-bottom: 30px" />
+
+      <!-- Connection Loading Bar -->
+      <div class="connection-loading-bar hidden">
+        <div class="loading-bar-text">Connecting...</div>
+        <div class="loading-bar-container">
+          <div class="loading-bar-fill"></div>
+        </div>
+      </div>
+
+      <button id="play" class="button hidden">Play</button>
+      <button id="setting" class="button hidden">Settings</button>
+      <button id="feature" class="button hidden">Guide</button>
     </div>
 
     <div class="features hidden">

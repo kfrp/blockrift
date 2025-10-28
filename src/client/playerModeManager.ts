@@ -22,6 +22,27 @@ export interface ConnectResponse {
 }
 
 /**
+ * Friendship broadcast message types
+ */
+export interface FriendshipAddedMessage {
+  type: "friendship-added";
+  targetUsername: string;
+  byUsername: string;
+  message: string;
+}
+
+export interface FriendshipRemovedMessage {
+  type: "friendship-removed";
+  targetUsername: string;
+  byUsername: string;
+  message: string;
+}
+
+export type FriendshipBroadcastMessage =
+  | FriendshipAddedMessage
+  | FriendshipRemovedMessage;
+
+/**
  * PlayerModeManager - Manages player mode state and capabilities
  */
 export class PlayerModeManager {
@@ -222,8 +243,7 @@ export class PlayerModeManager {
   private showViewerModeNotification(message?: string): void {
     const notification = message || "You are in Viewer Mode";
     console.log(`VIEWER MODE: ${notification}`);
-    // TODO: Integrate with UI notification system
-    alert(notification);
+    // UI notification is handled by playerModeUI.showViewerModeNotification()
   }
 
   /**
@@ -238,5 +258,31 @@ export class PlayerModeManager {
    */
   getLevel(): string {
     return this.level;
+  }
+
+  /**
+   * Handle friendship broadcast messages
+   */
+  handleFriendshipBroadcast(data: FriendshipBroadcastMessage): void {
+    // Only process if this player is the target
+    if (data.targetUsername !== this.username) {
+      return;
+    }
+
+    if (data.type === "friendship-added") {
+      // Add byUsername to friendedBy array if not already present
+      if (!this.friendedBy.includes(data.byUsername)) {
+        this.friendedBy.push(data.byUsername);
+        console.log(
+          `PlayerModeManager: ${data.byUsername} added you as a friend. You can now remove their blocks.`
+        );
+      }
+    } else if (data.type === "friendship-removed") {
+      // Remove byUsername from friendedBy array
+      this.friendedBy = this.friendedBy.filter((u) => u !== data.byUsername);
+      console.log(
+        `PlayerModeManager: ${data.byUsername} removed you as a friend. You can no longer remove their blocks.`
+      );
+    }
   }
 }

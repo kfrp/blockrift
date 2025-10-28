@@ -8,6 +8,7 @@ import { PlayerModeManager } from "./playerModeManager";
 import { BuilderRecognitionManager } from "./builderRecognitionManager";
 import { UpvoteManager } from "./upvoteManager";
 import { ChatManager } from "./chatManager";
+import { connectRealtime, type RealtimeConnection } from "./realtime";
 
 /**
  * Represents another player in the multiplayer world
@@ -77,6 +78,9 @@ export default class MultiplayerManager {
   private blockRemovalFeedbackCallback: ((message: string) => void) | null =
     null;
   private currentPlayerChunk: { x: number; z: number } = { x: 0, z: 0 };
+  private playerCount: number = 0;
+  private level: string = "default";
+  private gameLevelConnection: RealtimeConnection | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -98,27 +102,43 @@ export default class MultiplayerManager {
     this.upvoteManager = new UpvoteManager("default", this.playerModeManager);
   }
 
-  async connect(level: string = "default"): Promise<void> {
+  async connect(
+    level: string = "default",
+    connectionData?: any
+  ): Promise<void> {
     try {
-      const response = await fetch("http://localhost:3000/api/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ level }),
-      });
+      let data = connectionData;
 
-      const data = await response.json();
+      // If no connection data provided, fetch it (backward compatibility)
+      if (!data) {
+        const response = await fetch("http://localhost:3000/api/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ level }),
+        });
+        data = await response.json();
+      }
 
       // Initialize player mode from connection response
       this.playerModeManager.initialize(data);
       this.setUsername(data.username);
+      this.level = level;
+
+      // Store initial player count
+      if (data.playerCount !== undefined) {
+        this.playerCount = data.playerCount;
+        this.triggerUIUpdate();
+      }
 
       // Recreate upvote manager with correct level
       this.upvoteManager = new UpvoteManager(level, this.playerModeManager);
 
+      // Process terrain seeds
       if (data.terrainSeeds && data.terrainSeeds.seed !== undefined) {
         this.terrain.setSeeds(data.terrainSeeds.seed);
       } else throw new Error("No seed from server");
 
+      // Process initial chunks
       if (data.initialChunks && data.initialChunks.length > 0) {
         for (const chunkData of data.initialChunks) {
           this.loadChunkState(chunkData);
@@ -176,6 +196,23 @@ export default class MultiplayerManager {
         this.triggerUIUpdate();
       }
 
+      // Subscribe to game-level channel for friendship updates and player count
+      const gameLevelChannel = `game:${level}`;
+      this.gameLevelConnection = await connectRealtime({
+        channel: gameLevelChannel,
+        onConnect: (ch) => {
+          console.log(
+            `MultiplayerManager: Connected to game-level channel ${ch}`
+          );
+        },
+        onDisconnect: (ch) => {
+          console.log(
+            `MultiplayerManager: Disconnected from game-level channel ${ch}`
+          );
+        },
+        onMessage: (data) => this.handleMessage(data),
+      });
+
       // Only sync offline modifications in player mode
       if (this.playerModeManager.isPlayerMode()) {
         this.chunkStateManager.syncOfflineModifications();
@@ -200,6 +237,12 @@ export default class MultiplayerManager {
     }
 
     await this.chunkStateManager.flushBatch();
+
+    // Disconnect from game-level channel
+    if (this.gameLevelConnection) {
+      await this.gameLevelConnection.disconnect();
+      this.gameLevelConnection = null;
+    }
 
     if (this.username) {
       try {
@@ -251,6 +294,20 @@ export default class MultiplayerManager {
         break;
       case "player-positions":
         this.handlePositionUpdates(data as PositionUpdatesBroadcast);
+        break;
+      case "friendship-added":
+      case "friendship-removed":
+        console.log(
+          `MultiplayerManager: Received ${data.type} broadcast for ${data.targetUsername} by ${data.byUsername}`
+        );
+        this.playerModeManager.handleFriendshipBroadcast(data);
+        break;
+      case "player-count-update":
+        console.log(
+          `MultiplayerManager: Player count updated to ${data.count} for level ${data.level}`
+        );
+        this.playerCount = data.count;
+        this.triggerUIUpdate();
         break;
       default:
         return;
@@ -702,6 +759,13 @@ export default class MultiplayerManager {
    */
   getUpvoteManager(): UpvoteManager {
     return this.upvoteManager;
+  }
+
+  /**
+   * Get current player count for the level
+   */
+  getPlayerCount(): number {
+    return this.playerCount;
   }
 
   /**

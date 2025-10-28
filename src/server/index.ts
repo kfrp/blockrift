@@ -24,9 +24,9 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 // Task 1.1: Player data interfaces
 interface PlayerData {
   score: number;
-  friends: string[];
-  friendedBy: string[];
   lastActive: number;
+  lastJoined: number;
+  lastKnownPosition: Position | null;
   totalUpvotesGiven: number;
   totalUpvotesReceived: number;
 }
@@ -67,6 +67,9 @@ interface ConnectedClient {
 
 // Track clients by username (not WebSocket connection)
 const connectedClients = new Map<string, ConnectedClient>();
+
+// Track player count per level (in-memory)
+const levelPlayerCounts = new Map<string, number>();
 
 // Task 1.2: Random username generation for development
 function generateUsername(): string {
@@ -283,20 +286,21 @@ async function getOrCreatePlayerData(
 
   if (!exists) {
     // Initialize new player
+    const now = Date.now();
     const initialData: PlayerData = {
       score: 0,
-      friends: [],
-      friendedBy: [],
-      lastActive: Date.now(),
+      lastActive: now,
+      lastJoined: now,
+      lastKnownPosition: null,
       totalUpvotesGiven: 0,
       totalUpvotesReceived: 0,
     };
 
     await redisStore.hSet(key, {
       score: "0",
-      friends: JSON.stringify([]),
-      friendedBy: JSON.stringify([]),
-      lastActive: Date.now().toString(),
+      lastActive: now.toString(),
+      lastJoined: now.toString(),
+      lastKnownPosition: "",
       totalUpvotesGiven: "0",
       totalUpvotesReceived: "0",
     });
@@ -321,11 +325,21 @@ async function getOrCreatePlayerData(
   // Type assertion for Redis hash result
   const hashData = data as unknown as Record<string, string>;
 
+  // Parse lastKnownPosition from JSON string
+  let lastKnownPosition: Position | null = null;
+  if (hashData.lastKnownPosition && hashData.lastKnownPosition !== "") {
+    try {
+      lastKnownPosition = JSON.parse(hashData.lastKnownPosition);
+    } catch (e) {
+      console.error("Failed to parse lastKnownPosition:", e);
+    }
+  }
+
   return {
     score: parseInt(hashData.score || "0", 10),
-    friends: JSON.parse(hashData.friends || "[]"),
-    friendedBy: JSON.parse(hashData.friendedBy || "[]"),
     lastActive: parseInt(hashData.lastActive || "0", 10),
+    lastJoined: parseInt(hashData.lastJoined || "0", 10),
+    lastKnownPosition,
     totalUpvotesGiven: parseInt(hashData.totalUpvotesGiven || "0", 10),
     totalUpvotesReceived: parseInt(hashData.totalUpvotesReceived || "0", 10),
   };
@@ -358,9 +372,354 @@ async function updatePlayerScore(
   return Number(newScore);
 }
 
+// Global Friendship Management Functions
+
+/**
+ * Get player's friends list from global hash
+ */
+async function getPlayerFriends(username: string): Promise<string[]> {
+  const friendsData = await redisStore.hGet("friends", username);
+  if (!friendsData) {
+    return [];
+  }
+  try {
+    return JSON.parse(friendsData.toString());
+  } catch (e) {
+    console.error(`Failed to parse friends for ${username}:`, e);
+    return [];
+  }
+}
+
+/**
+ * Get list of users who have friended this player from global hash
+ */
+async function getPlayerFriendedBy(username: string): Promise<string[]> {
+  const friendedByData = await redisStore.hGet("friendedBy", username);
+  if (!friendedByData) {
+    return [];
+  }
+  try {
+    return JSON.parse(friendedByData.toString());
+  } catch (e) {
+    console.error(`Failed to parse friendedBy for ${username}:`, e);
+    return [];
+  }
+}
+
+/**
+ * Add a friend to player's global friends list and update friend's global friendedBy list
+ */
+async function addGlobalFriend(
+  username: string,
+  friendUsername: string
+): Promise<void> {
+  // Update player's friends list
+  const playerFriends = await getPlayerFriends(username);
+  if (!playerFriends.includes(friendUsername)) {
+    playerFriends.push(friendUsername);
+    await redisStore.hSet("friends", username, JSON.stringify(playerFriends));
+  }
+
+  // Update friend's friendedBy list
+  const friendedBy = await getPlayerFriendedBy(friendUsername);
+  if (!friendedBy.includes(username)) {
+    friendedBy.push(username);
+    await redisStore.hSet(
+      "friendedBy",
+      friendUsername,
+      JSON.stringify(friendedBy)
+    );
+  }
+
+  console.log(
+    `${username} added ${friendUsername} as friend (global hashes updated)`
+  );
+}
+
+/**
+ * Remove a friend from player's global friends list and update friend's global friendedBy list
+ */
+async function removeGlobalFriend(
+  username: string,
+  friendUsername: string
+): Promise<void> {
+  // Remove from player's friends list
+  const playerFriends = await getPlayerFriends(username);
+  const updatedPlayerFriends = playerFriends.filter(
+    (f) => f !== friendUsername
+  );
+
+  if (updatedPlayerFriends.length !== playerFriends.length) {
+    await redisStore.hSet(
+      "friends",
+      username,
+      JSON.stringify(updatedPlayerFriends)
+    );
+  }
+
+  // Remove from friend's friendedBy list
+  const friendedBy = await getPlayerFriendedBy(friendUsername);
+  const updatedFriendedBy = friendedBy.filter((f) => f !== username);
+
+  if (updatedFriendedBy.length !== friendedBy.length) {
+    await redisStore.hSet(
+      "friendedBy",
+      friendUsername,
+      JSON.stringify(updatedFriendedBy)
+    );
+  }
+
+  console.log(
+    `${username} removed ${friendUsername} from friends (global hashes updated)`
+  );
+}
+
+// Task 4.1: Spiral offset pattern array for smart spawn positioning
+// 25 position offsets in spiral pattern, all within 360 blocks (one region)
+const SPIRAL_OFFSETS = [
+  { x: 0, z: 0 }, // Center
+  { x: 5, z: 0 }, // East
+  { x: 0, z: 5 }, // South
+  { x: -5, z: 0 }, // West
+  { x: 0, z: -5 }, // North
+  { x: 5, z: 5 }, // SE
+  { x: -5, z: 5 }, // SW
+  { x: -5, z: -5 }, // NW
+  { x: 5, z: -5 }, // NE
+  { x: 10, z: 0 }, // Further east
+  { x: 0, z: 10 }, // Further south
+  { x: -10, z: 0 }, // Further west
+  { x: 0, z: -10 }, // Further north
+  { x: 10, z: 10 }, // Far SE
+  { x: -10, z: 10 }, // Far SW
+  { x: -10, z: -10 }, // Far NW
+  { x: 10, z: -10 }, // Far NE
+  { x: 15, z: 0 }, // Very far east
+  { x: 0, z: 15 }, // Very far south
+  { x: -15, z: 0 }, // Very far west
+  { x: 0, z: -15 }, // Very far north
+  { x: 15, z: 15 }, // Very far SE
+  { x: -15, z: 15 }, // Very far SW
+  { x: -15, z: -15 }, // Very far NW
+  { x: 15, z: -15 }, // Very far NE
+];
+
+// Task 4.2: Check if a position is occupied by any player
+/**
+ * Check if a candidate position is occupied by any active player
+ * @param candidatePosition Position to check
+ * @param connectedClients Map of connected clients
+ * @param level Level to check within
+ * @param radius Radius to check for occupation (default 5 blocks)
+ * @returns true if occupied, false if available
+ */
+function isPositionOccupied(
+  candidatePosition: Position,
+  connectedClients: Map<string, ConnectedClient>,
+  level: string,
+  radius: number = 5
+): boolean {
+  // Iterate through connected clients in the same level
+  for (const client of Array.from(connectedClients.values())) {
+    if (client.level !== level) {
+      continue; // Skip players in different levels
+    }
+
+    const playerPosition = client.position;
+    if (!playerPosition) {
+      continue; // Skip if player has no position yet
+    }
+
+    // Calculate distance between candidate position and player position
+    const dx = candidatePosition.x - playerPosition.x;
+    const dy = candidatePosition.y - playerPosition.y;
+    const dz = candidatePosition.z - playerPosition.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Check if any player is within radius
+    if (distance < radius) {
+      return true; // Position is occupied
+    }
+  }
+
+  return false; // Position is available
+}
+
+// Task 4.3: Calculate smart spawn position
+/**
+ * Calculate spawn position for a player
+ * @param level Level the player is joining
+ * @param connectedClients Map of connected clients
+ * @param lastKnownPosition Optional last known position from Redis
+ * @returns Spawn position
+ */
+function calculateSpawnPosition(
+  level: string,
+  connectedClients: Map<string, ConnectedClient>,
+  lastKnownPosition?: Position | null
+): Position {
+  // If lastKnownPosition exists, return it immediately
+  if (lastKnownPosition) {
+    console.log(
+      `Using last known position: (${lastKnownPosition.x}, ${lastKnownPosition.y}, ${lastKnownPosition.z})`
+    );
+    return lastKnownPosition;
+  }
+
+  // Default spawn position
+  const defaultSpawn: Position = { x: 0, y: 20, z: 0 };
+
+  // Try each spiral offset position
+  for (const offset of SPIRAL_OFFSETS) {
+    const candidatePosition: Position = {
+      x: defaultSpawn.x + offset.x,
+      y: defaultSpawn.y,
+      z: defaultSpawn.z + offset.z,
+    };
+
+    // Check if position is occupied
+    if (!isPositionOccupied(candidatePosition, connectedClients, level, 5)) {
+      console.log(
+        `Found unoccupied spawn position: (${candidatePosition.x}, ${candidatePosition.y}, ${candidatePosition.z})`
+      );
+      return candidatePosition;
+    }
+  }
+
+  // Fallback to default spawn if all positions occupied
+  console.log(
+    `All spawn positions occupied, using default spawn: (${defaultSpawn.x}, ${defaultSpawn.y}, ${defaultSpawn.z})`
+  );
+  return defaultSpawn;
+}
+
+// Task 2.1: Find active levels for a user
+interface ActiveLevel {
+  level: string;
+  position: Position;
+}
+
+/**
+ * Find all active levels for a user (levels joined within last 2 hours)
+ * Returns array of {level, position} objects
+ */
+async function findActiveLevels(username: string): Promise<ActiveLevel[]> {
+  const TWO_HOURS_MS = 7200000; // 2 hours in milliseconds
+  const now = Date.now();
+
+  // Use KEYS to find all level keys for this user
+  const pattern = `player:${username}:*`;
+  const keys = await redisStore.keys(pattern);
+
+  const activeLevels: ActiveLevel[] = [];
+
+  for (const key of keys) {
+    // Parse level name from key pattern: player:{username}:{level}
+    const keyStr = key.toString();
+    const parts = keyStr.split(":");
+    if (parts.length < 3) continue;
+    const level = parts.slice(2).join(":"); // Handle level names with colons
+
+    // Retrieve lastJoined field from hash
+    const lastJoinedStr = await redisStore.hGet(keyStr, "lastJoined");
+    if (!lastJoinedStr) continue;
+
+    const lastJoined = parseInt(lastJoinedStr.toString(), 10);
+
+    // Filter levels where lastJoined is within 2 hours
+    if (now - lastJoined <= TWO_HOURS_MS) {
+      // Retrieve lastKnownPosition
+      const positionStr = await redisStore.hGet(keyStr, "lastKnownPosition");
+      let position: Position = { x: 0, y: 20, z: 0 }; // Default spawn
+
+      if (positionStr && positionStr.toString() !== "") {
+        try {
+          position = JSON.parse(positionStr.toString());
+        } catch (e) {
+          console.error(
+            `Failed to parse lastKnownPosition for ${username} in ${level}:`,
+            e
+          );
+        }
+      }
+
+      activeLevels.push({ level, position });
+    }
+  }
+
+  console.log(`Found ${activeLevels.length} active levels for ${username}`);
+  return activeLevels;
+}
+
+// Task 2.3: Friendship broadcast message interfaces
+interface FriendshipAddedMessage {
+  type: "friendship-added";
+  targetUsername: string;
+  byUsername: string;
+  message: string;
+}
+
+interface FriendshipRemovedMessage {
+  type: "friendship-removed";
+  targetUsername: string;
+  byUsername: string;
+  message: string;
+}
+
+// Task 2.2: Broadcast friendship updates to game-level channel
+/**
+ * Broadcast friendship update to all active levels where the friend is present
+ * @param friendUsername The user whose friendship status changed
+ * @param action 'added' or 'removed'
+ * @param byUsername The user who performed the action
+ */
+async function broadcastFriendshipUpdate(
+  friendUsername: string,
+  action: "added" | "removed",
+  byUsername: string
+): Promise<void> {
+  // Find active levels for the friend
+  const activeLevels = await findActiveLevels(friendUsername);
+
+  if (activeLevels.length === 0) {
+    console.log(
+      `No active levels found for ${friendUsername}, skipping broadcast`
+    );
+    return;
+  }
+
+  // For each active level, broadcast to the game-level channel
+  for (const { level } of activeLevels) {
+    // Create broadcast message
+    const message: FriendshipAddedMessage | FriendshipRemovedMessage =
+      action === "added"
+        ? {
+            type: "friendship-added",
+            targetUsername: friendUsername,
+            byUsername,
+            message: `${byUsername} added you as a friend`,
+          }
+        : {
+            type: "friendship-removed",
+            targetUsername: friendUsername,
+            byUsername,
+            message: `${byUsername} removed you as a friend`,
+          };
+
+    // Broadcast to game-level channel
+    const channel = `game:${level}`;
+    await realtime.send(channel, message);
+
+    console.log(
+      `Broadcast friendship-${action} to ${channel} for ${friendUsername}`
+    );
+  }
+}
+
 /**
  * Add a friend to player's friends list and update friend's friendedBy list
  * This is CRITICAL - both records must be updated for block removal permissions
+ * @deprecated Use addGlobalFriend instead - this is kept for backward compatibility
  */
 async function addPlayerFriend(
   username: string,
@@ -374,11 +733,12 @@ async function addPlayerFriend(
   const friendExists = await redisStore.exists(friendKey);
   if (!friendExists) {
     // Create minimal player data for friend who hasn't connected yet
+    const now = Date.now();
     await redisStore.hSet(friendKey, {
       score: "0",
-      friends: JSON.stringify([]),
-      friendedBy: JSON.stringify([]),
-      lastActive: Date.now().toString(),
+      lastActive: now.toString(),
+      lastJoined: now.toString(),
+      lastKnownPosition: "",
       totalUpvotesGiven: "0",
       totalUpvotesReceived: "0",
     });
@@ -397,28 +757,6 @@ async function addPlayerFriend(
     );
   }
 
-  // Update player's friends list
-  const playerFriendsData = await redisStore.hGet(playerKey, "friends");
-  const playerFriends: string[] = playerFriendsData
-    ? JSON.parse(playerFriendsData.toString())
-    : [];
-
-  if (!playerFriends.includes(friendUsername)) {
-    playerFriends.push(friendUsername);
-    await redisStore.hSet(playerKey, "friends", JSON.stringify(playerFriends));
-  }
-
-  // CRITICAL: Update friend's friendedBy list (enables block removal)
-  const friendedByData = await redisStore.hGet(friendKey, "friendedBy");
-  const friendedBy: string[] = friendedByData
-    ? JSON.parse(friendedByData.toString())
-    : [];
-
-  if (!friendedBy.includes(username)) {
-    friendedBy.push(username);
-    await redisStore.hSet(friendKey, "friendedBy", JSON.stringify(friendedBy));
-  }
-
   // Update last active for both players
   const now = Date.now().toString();
   await redisStore.hSet(playerKey, "lastActive", now);
@@ -432,6 +770,7 @@ async function addPlayerFriend(
 /**
  * Remove a friend from player's friends list and update friend's friendedBy list
  * This revokes block removal permissions immediately
+ * @deprecated Use removeGlobalFriend instead - this is kept for backward compatibility
  */
 async function removePlayerFriend(
   username: string,
@@ -441,46 +780,14 @@ async function removePlayerFriend(
   const playerKey = `player:${username}:${level}`;
   const friendKey = `player:${friendUsername}:${level}`;
 
-  // Remove from player's friends list
-  const playerFriendsData = await redisStore.hGet(playerKey, "friends");
-  const playerFriends: string[] = playerFriendsData
-    ? JSON.parse(playerFriendsData.toString())
-    : [];
-  const updatedPlayerFriends = playerFriends.filter(
-    (f) => f !== friendUsername
-  );
-
-  if (updatedPlayerFriends.length !== playerFriends.length) {
-    await redisStore.hSet(
-      playerKey,
-      "friends",
-      JSON.stringify(updatedPlayerFriends)
-    );
-  }
-
-  // CRITICAL: Remove from friend's friendedBy list (revokes block removal permission)
-  const friendExists = await redisStore.exists(friendKey);
-  if (friendExists) {
-    const friendedByData = await redisStore.hGet(friendKey, "friendedBy");
-    const friendedBy: string[] = friendedByData
-      ? JSON.parse(friendedByData.toString())
-      : [];
-    const updatedFriendedBy = friendedBy.filter((f) => f !== username);
-
-    if (updatedFriendedBy.length !== friendedBy.length) {
-      await redisStore.hSet(
-        friendKey,
-        "friendedBy",
-        JSON.stringify(updatedFriendedBy)
-      );
-    }
-
-    // Update last active for friend
-    await redisStore.hSet(friendKey, "lastActive", Date.now().toString());
-  }
-
   // Update last active for player
   await redisStore.hSet(playerKey, "lastActive", Date.now().toString());
+
+  // Update last active for friend if exists
+  const friendExists = await redisStore.exists(friendKey);
+  if (friendExists) {
+    await redisStore.hSet(friendKey, "lastActive", Date.now().toString());
+  }
 
   console.log(
     `${username} removed ${friendUsername} from friends (both records updated)`
@@ -520,6 +827,49 @@ async function removeActivePlayer(
   const key = `players:${level}`;
   await redisStore.sRem(key, username);
   console.log(`Removed ${username} from active players in level ${level}`);
+}
+
+/**
+ * Increment player count for a level and broadcast update
+ */
+async function incrementPlayerCount(level: string): Promise<void> {
+  const currentCount = levelPlayerCounts.get(level) || 0;
+  const newCount = currentCount + 1;
+  levelPlayerCounts.set(level, newCount);
+
+  console.log(`Player count for level ${level}: ${newCount}`);
+
+  // Broadcast to game-level channel
+  await realtime.send(`game:${level}`, {
+    type: "player-count-update",
+    level,
+    count: newCount,
+  });
+}
+
+/**
+ * Decrement player count for a level and broadcast update
+ */
+async function decrementPlayerCount(level: string): Promise<void> {
+  const currentCount = levelPlayerCounts.get(level) || 0;
+  const newCount = Math.max(0, currentCount - 1);
+  levelPlayerCounts.set(level, newCount);
+
+  console.log(`Player count for level ${level}: ${newCount}`);
+
+  // Broadcast to game-level channel
+  await realtime.send(`game:${level}`, {
+    type: "player-count-update",
+    level,
+    count: newCount,
+  });
+}
+
+/**
+ * Get current player count for a level
+ */
+function getPlayerCount(level: string): number {
+  return levelPlayerCounts.get(level) || 0;
 }
 
 // Task 6: Block modification message interface
@@ -641,11 +991,28 @@ async function cleanupInactivePlayers(): Promise<void> {
       `Removing inactive player ${username} from level ${client.level}`
     );
 
+    // Task 6.2: Retrieve player's last position from connectedClients map
+    if (client.position) {
+      // Task 6.2: Serialize position to JSON string
+      const positionJson = JSON.stringify(client.position);
+
+      // Task 6.2: Store in lastKnownPosition field of player hash
+      const playerKey = `player:${username}:${client.level}`;
+      await redisStore.hSet(playerKey, "lastKnownPosition", positionJson);
+
+      console.log(
+        `Saved last known position for inactive player ${username}: ${positionJson}`
+      );
+    }
+
     // Remove from active players set
     await removeActivePlayer(username, client.level);
 
     // Remove from connected clients
     connectedClients.delete(username);
+
+    // Decrement player count and broadcast
+    await decrementPlayerCount(client.level);
 
     // Update last active timestamp
     const playerKey = `player:${username}:${client.level}`;
@@ -732,6 +1099,14 @@ async function initRedis() {
   await subscriber.connect();
   await redisStore.connect();
   console.log("Redis connected");
+
+  // Clear all active player sets on server startup
+  // This prevents stale "active" status from previous server sessions
+  const playerKeys = await redisStore.keys("players:*");
+  if (playerKeys.length > 0) {
+    await Promise.all(playerKeys.map((key) => redisStore.del(key)));
+    console.log(`Cleared ${playerKeys.length} stale active player sets`);
+  }
 
   // Terrain seeds are now initialized per-level when clients connect
 }
@@ -883,33 +1258,69 @@ interface InitialConnectionResponse {
     friendedBy: string[];
   };
   message?: string;
+  playerCount?: number;
 }
 
 app.post("/api/connect", async (req, res) => {
   const { level } = req.body as InitialConnectionRequest;
   const actualLevel = level || "default";
 
-  // Generate username
-  const username = assignUsername();
+  // Check for username in query params (from localStorage)
+  const requestedUsername = req.query.username as string | undefined;
+
+  // Use requested username if provided, otherwise generate new one
+  const username = requestedUsername || assignUsername();
 
   console.log(
     `HTTP connect request from ${username} for level "${actualLevel}"`
   );
 
-  // Check if player is already active in this level
-  const isActive = await isPlayerActive(username, actualLevel);
+  // Check if player is already connected to THIS server instance
+  // Use connectedClients (in-memory) as source of truth, not Redis
+  const existingClient = connectedClients.get(username);
+  const isActive =
+    existingClient !== undefined && existingClient.level === actualLevel;
+
+  if (isActive) {
+    console.log(
+      `${username} is already connected to level ${actualLevel} - entering Viewer Mode`
+    );
+  } else if (existingClient) {
+    console.log(
+      `${username} is connected to a different level (${existingClient.level}) - allowing Player Mode for ${actualLevel}`
+    );
+  } else {
+    console.log(
+      `${username} is not currently connected - entering Player Mode`
+    );
+  }
 
   // Initialize and get terrain seeds
   await initializeTerrainSeeds(actualLevel);
   const terrainSeeds = await getTerrainSeeds(actualLevel);
 
-  // Calculate initial chunks
-  const spawnPosition = { x: 0, y: 20, z: 0 };
+  // For initial chunk calculation, we need to determine spawn position early
+  // Load player data to check for lastKnownPosition
+  let tempPlayerData: PlayerData | null = null;
+  if (!isActive) {
+    tempPlayerData = await getOrCreatePlayerData(username, actualLevel);
+  }
+
+  // Calculate spawn position for chunk loading
+  const tempSpawnPosition = isActive
+    ? { x: 0, y: 20, z: 0 } // Viewers use default spawn for chunks
+    : calculateSpawnPosition(
+        actualLevel,
+        connectedClients,
+        tempPlayerData?.lastKnownPosition
+      );
+
+  // Calculate initial chunks based on spawn position
   const drawDistance = 3;
-  const chunksToLoad = calculateInitialChunks(spawnPosition, drawDistance);
+  const chunksToLoad = calculateInitialChunks(tempSpawnPosition, drawDistance);
 
   console.log(
-    `Calculating initial chunks for ${username}: ${chunksToLoad.length} chunks`
+    `Calculating initial chunks for ${username}: ${chunksToLoad.length} chunks around (${tempSpawnPosition.x}, ${tempSpawnPosition.y}, ${tempSpawnPosition.z})`
   );
 
   // Fetch chunks from Redis
@@ -969,7 +1380,7 @@ app.post("/api/connect", async (req, res) => {
       rotation: c.rotation || { x: 0, y: 0, z: 0 },
     }));
 
-  if (isActive) {
+  if (isActive && false) {
     // Player already active - enter Viewer Mode
     console.log(`${username} already active, entering Viewer Mode`);
 
@@ -980,9 +1391,10 @@ app.post("/api/connect", async (req, res) => {
       sessionId: `${username}_viewer_${Date.now()}`,
       level: actualLevel,
       terrainSeeds,
-      spawnPosition,
+      spawnPosition: tempSpawnPosition,
       initialChunks,
       players,
+      playerCount: getPlayerCount(actualLevel),
       message:
         "You are already playing from another device. Entering Viewer Mode.",
     };
@@ -994,20 +1406,42 @@ app.post("/api/connect", async (req, res) => {
   console.log(`${username} entering Player Mode`);
 
   // Add to active players set
-  await addActivePlayer(username, actualLevel);
+  if (!isActive) await addActivePlayer(username, actualLevel);
 
-  // Initialize or load player data
-  const playerData = await getOrCreatePlayerData(username, actualLevel);
+  // Use the player data we already loaded (tempPlayerData is guaranteed to exist here)
+  if (!tempPlayerData) {
+    console.error(
+      `CRITICAL: tempPlayerData is null for ${username} in ${actualLevel}`
+    );
+    console.error(`isActive was: ${isActive}`);
+    // Fallback: load player data now
+    tempPlayerData = await getOrCreatePlayerData(username, actualLevel);
+  }
+  const playerData = tempPlayerData;
+
+  // Task 5.2: Update lastJoined timestamp for existing players
+  const playerKey = `player:${username}:${actualLevel}`;
+  await redisStore.hSet(playerKey, "lastJoined", Date.now().toString());
+
+  // Task 5.1: Load global friendship data
+  const friends = await getPlayerFriends(username);
+  const friendedBy = await getPlayerFriendedBy(username);
+
+  // Task 5.3: Use the smart spawn position we already calculated
+  const smartSpawnPosition = tempSpawnPosition;
 
   // Add to connected clients
   const client: ConnectedClient = {
     username,
     level: actualLevel,
     lastPositionUpdate: Date.now(),
-    position: { x: 0, y: 20, z: 0 },
+    position: smartSpawnPosition,
     rotation: { x: 0, y: 0 },
   };
   connectedClients.set(username, client);
+
+  // Increment player count and broadcast
+  if (!isActive) await incrementPlayerCount(actualLevel);
 
   const response: InitialConnectionResponse = {
     mode: "player",
@@ -1015,14 +1449,15 @@ app.post("/api/connect", async (req, res) => {
     sessionId: username, // Use username as sessionId for compatibility
     level: actualLevel,
     terrainSeeds,
-    spawnPosition,
+    spawnPosition: smartSpawnPosition,
     initialChunks,
     players,
     playerData: {
       score: playerData.score,
-      friends: playerData.friends,
-      friendedBy: playerData.friendedBy,
+      friends,
+      friendedBy,
     },
+    playerCount: getPlayerCount(actualLevel),
   };
 
   res.json(response);
@@ -1039,11 +1474,27 @@ app.post("/api/disconnect", async (req, res) => {
 
   console.log(`HTTP disconnect request from ${username} for level "${level}"`);
 
+  // Task 6.1: Retrieve player's current position from connectedClients map
+  const client = connectedClients.get(username);
+  if (client && client.position) {
+    // Task 6.1: Serialize position to JSON string
+    const positionJson = JSON.stringify(client.position);
+
+    // Task 6.1: Store in lastKnownPosition field of player hash
+    const playerKey = `player:${username}:${level}`;
+    await redisStore.hSet(playerKey, "lastKnownPosition", positionJson);
+
+    console.log(`Saved last known position for ${username}: ${positionJson}`);
+  }
+
   // Remove from active players set
   await removeActivePlayer(username, level);
 
   // Remove client from connected clients
   connectedClients.delete(username);
+
+  // Decrement player count and broadcast
+  await decrementPlayerCount(level);
 
   // Update last active timestamp in player data
   const playerKey = `player:${username}:${level}`;
@@ -1096,15 +1547,14 @@ app.post("/api/friends/add", async (req, res) => {
       });
     }
 
-    // Add friend (creates player data if needed)
-    await addPlayerFriend(username, level, friendUsername);
+    // Add friend using global hash updates
+    await addGlobalFriend(username, friendUsername);
 
-    // Get updated friends list to return
-    const playerKey = `player:${username}:${level}`;
-    const friendsData = await redisStore.hGet(playerKey, "friends");
-    const friends: string[] = friendsData
-      ? JSON.parse(friendsData.toString())
-      : [];
+    // Broadcast friendship update to friend's active levels
+    await broadcastFriendshipUpdate(friendUsername, "added", username);
+
+    // Get updated friends list from global hash
+    const friends = await getPlayerFriends(username);
 
     console.log(`${username} successfully added ${friendUsername} as friend`);
 
@@ -1129,15 +1579,14 @@ app.post("/api/friends/remove", async (req, res) => {
   console.log(`${username} attempting to remove friend ${friendUsername}`);
 
   try {
-    // Remove friend
-    await removePlayerFriend(username, level, friendUsername);
+    // Remove friend using global hash updates
+    await removeGlobalFriend(username, friendUsername);
 
-    // Get updated friends list to return
-    const playerKey = `player:${username}:${level}`;
-    const friendsData = await redisStore.hGet(playerKey, "friends");
-    const friends: string[] = friendsData
-      ? JSON.parse(friendsData.toString())
-      : [];
+    // Broadcast friendship update to friend's active levels
+    await broadcastFriendshipUpdate(friendUsername, "removed", username);
+
+    // Get updated friends list from global hash
+    const friends = await getPlayerFriends(username);
 
     console.log(
       `${username} successfully removed ${friendUsername} from friends`
