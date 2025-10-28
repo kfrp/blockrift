@@ -21,6 +21,16 @@ const channelSubscribers = new Map<string, Set<WebSocket>>();
 // Task 1.1: Environment detection (development vs production)
 const isDevelopment = process.env.NODE_ENV !== "production";
 
+// Task 1.1: Player data interfaces
+interface PlayerData {
+  score: number;
+  friends: string[];
+  friendedBy: string[];
+  lastActive: number;
+  totalUpvotesGiven: number;
+  totalUpvotesReceived: number;
+}
+
 type Position = { x: number; y: number; z: number };
 type Rotation = { x: number; y: number };
 type Player = {
@@ -258,6 +268,260 @@ function hashString(str: string): number {
   return Math.abs(hash) / 2147483647;
 }
 
+// Task 1.1: Player data management helper functions
+
+/**
+ * Get or create player data in Redis
+ * Initializes new player with score=0, empty friends lists
+ */
+async function getOrCreatePlayerData(
+  username: string,
+  level: string
+): Promise<PlayerData> {
+  const key = `player:${username}:${level}`;
+  const exists = await redisStore.exists(key);
+
+  if (!exists) {
+    // Initialize new player
+    const initialData: PlayerData = {
+      score: 0,
+      friends: [],
+      friendedBy: [],
+      lastActive: Date.now(),
+      totalUpvotesGiven: 0,
+      totalUpvotesReceived: 0,
+    };
+
+    await redisStore.hSet(key, {
+      score: "0",
+      friends: JSON.stringify([]),
+      friendedBy: JSON.stringify([]),
+      lastActive: Date.now().toString(),
+      totalUpvotesGiven: "0",
+      totalUpvotesReceived: "0",
+    });
+
+    // Add to scores sorted set for leaderboard
+    await redisStore.zAdd(`scores:${level}`, { score: 0, value: username });
+
+    // Set TTL to 7 days
+    await redisStore.expire(key, 7 * 24 * 60 * 60);
+
+    console.log(`Initialized player data for ${username} in level ${level}`);
+
+    return initialData;
+  }
+
+  // Load existing player data
+  const data = await redisStore.hGetAll(key);
+
+  // Refresh TTL
+  await redisStore.expire(key, 7 * 24 * 60 * 60);
+
+  // Type assertion for Redis hash result
+  const hashData = data as unknown as Record<string, string>;
+
+  return {
+    score: parseInt(hashData.score || "0", 10),
+    friends: JSON.parse(hashData.friends || "[]"),
+    friendedBy: JSON.parse(hashData.friendedBy || "[]"),
+    lastActive: parseInt(hashData.lastActive || "0", 10),
+    totalUpvotesGiven: parseInt(hashData.totalUpvotesGiven || "0", 10),
+    totalUpvotesReceived: parseInt(hashData.totalUpvotesReceived || "0", 10),
+  };
+}
+
+/**
+ * Update player score atomically
+ * Returns the new score value
+ */
+async function updatePlayerScore(
+  username: string,
+  level: string,
+  increment: number
+): Promise<number> {
+  const key = `player:${username}:${level}`;
+
+  // Atomic increment in Redis hash
+  const newScore = await redisStore.hIncrBy(key, "score", increment);
+
+  // Update sorted set for leaderboard
+  await redisStore.zIncrBy(`scores:${level}`, increment, username);
+
+  // Update last active timestamp
+  await redisStore.hSet(key, "lastActive", Date.now().toString());
+
+  console.log(
+    `Updated ${username}'s score by ${increment} to ${newScore} in level ${level}`
+  );
+
+  return Number(newScore);
+}
+
+/**
+ * Add a friend to player's friends list and update friend's friendedBy list
+ * This is CRITICAL - both records must be updated for block removal permissions
+ */
+async function addPlayerFriend(
+  username: string,
+  level: string,
+  friendUsername: string
+): Promise<void> {
+  const playerKey = `player:${username}:${level}`;
+  const friendKey = `player:${friendUsername}:${level}`;
+
+  // Ensure friend's player data exists (create if needed)
+  const friendExists = await redisStore.exists(friendKey);
+  if (!friendExists) {
+    // Create minimal player data for friend who hasn't connected yet
+    await redisStore.hSet(friendKey, {
+      score: "0",
+      friends: JSON.stringify([]),
+      friendedBy: JSON.stringify([]),
+      lastActive: Date.now().toString(),
+      totalUpvotesGiven: "0",
+      totalUpvotesReceived: "0",
+    });
+
+    // Add to scores sorted set
+    await redisStore.zAdd(`scores:${level}`, {
+      score: 0,
+      value: friendUsername,
+    });
+
+    // Set TTL to 7 days
+    await redisStore.expire(friendKey, 7 * 24 * 60 * 60);
+
+    console.log(
+      `Created minimal player data for ${friendUsername} (not yet connected)`
+    );
+  }
+
+  // Update player's friends list
+  const playerFriendsData = await redisStore.hGet(playerKey, "friends");
+  const playerFriends: string[] = playerFriendsData
+    ? JSON.parse(playerFriendsData.toString())
+    : [];
+
+  if (!playerFriends.includes(friendUsername)) {
+    playerFriends.push(friendUsername);
+    await redisStore.hSet(playerKey, "friends", JSON.stringify(playerFriends));
+  }
+
+  // CRITICAL: Update friend's friendedBy list (enables block removal)
+  const friendedByData = await redisStore.hGet(friendKey, "friendedBy");
+  const friendedBy: string[] = friendedByData
+    ? JSON.parse(friendedByData.toString())
+    : [];
+
+  if (!friendedBy.includes(username)) {
+    friendedBy.push(username);
+    await redisStore.hSet(friendKey, "friendedBy", JSON.stringify(friendedBy));
+  }
+
+  // Update last active for both players
+  const now = Date.now().toString();
+  await redisStore.hSet(playerKey, "lastActive", now);
+  await redisStore.hSet(friendKey, "lastActive", now);
+
+  console.log(
+    `${username} added ${friendUsername} as friend (both records updated)`
+  );
+}
+
+/**
+ * Remove a friend from player's friends list and update friend's friendedBy list
+ * This revokes block removal permissions immediately
+ */
+async function removePlayerFriend(
+  username: string,
+  level: string,
+  friendUsername: string
+): Promise<void> {
+  const playerKey = `player:${username}:${level}`;
+  const friendKey = `player:${friendUsername}:${level}`;
+
+  // Remove from player's friends list
+  const playerFriendsData = await redisStore.hGet(playerKey, "friends");
+  const playerFriends: string[] = playerFriendsData
+    ? JSON.parse(playerFriendsData.toString())
+    : [];
+  const updatedPlayerFriends = playerFriends.filter(
+    (f) => f !== friendUsername
+  );
+
+  if (updatedPlayerFriends.length !== playerFriends.length) {
+    await redisStore.hSet(
+      playerKey,
+      "friends",
+      JSON.stringify(updatedPlayerFriends)
+    );
+  }
+
+  // CRITICAL: Remove from friend's friendedBy list (revokes block removal permission)
+  const friendExists = await redisStore.exists(friendKey);
+  if (friendExists) {
+    const friendedByData = await redisStore.hGet(friendKey, "friendedBy");
+    const friendedBy: string[] = friendedByData
+      ? JSON.parse(friendedByData.toString())
+      : [];
+    const updatedFriendedBy = friendedBy.filter((f) => f !== username);
+
+    if (updatedFriendedBy.length !== friendedBy.length) {
+      await redisStore.hSet(
+        friendKey,
+        "friendedBy",
+        JSON.stringify(updatedFriendedBy)
+      );
+    }
+
+    // Update last active for friend
+    await redisStore.hSet(friendKey, "lastActive", Date.now().toString());
+  }
+
+  // Update last active for player
+  await redisStore.hSet(playerKey, "lastActive", Date.now().toString());
+
+  console.log(
+    `${username} removed ${friendUsername} from friends (both records updated)`
+  );
+}
+
+// Task 1.2: Active players tracking helper functions
+
+/**
+ * Check if a player is currently active in a level
+ */
+async function isPlayerActive(
+  username: string,
+  level: string
+): Promise<boolean> {
+  const key = `players:${level}`;
+  const result = await redisStore.sIsMember(key, username);
+  return Boolean(result);
+}
+
+/**
+ * Add a player to the active players set for a level
+ */
+async function addActivePlayer(username: string, level: string): Promise<void> {
+  const key = `players:${level}`;
+  await redisStore.sAdd(key, username);
+  console.log(`Added ${username} to active players in level ${level}`);
+}
+
+/**
+ * Remove a player from the active players set for a level
+ */
+async function removeActivePlayer(
+  username: string,
+  level: string
+): Promise<void> {
+  const key = `players:${level}`;
+  await redisStore.sRem(key, username);
+  console.log(`Removed ${username} from active players in level ${level}`);
+}
+
 // Task 6: Block modification message interface
 export interface BlockModificationMessage {
   type: "block-modify";
@@ -353,14 +617,16 @@ const lastBroadcastState = new Map<
   Map<string, { position: string; rotation: string }>
 >();
 
-async function broadcastPositionUpdates(): Promise<void> {
-  const REGION_SIZE = 15;
-  const CHUNK_SIZE = 24;
-  const TIMEOUT_MS = 120000; // 120 seconds (2 minutes) - remove players who haven't updated
+/**
+ * Clean up inactive players (called every 10 seconds)
+ * Removes players who haven't sent position updates in 2 minutes
+ */
+async function cleanupInactivePlayers(): Promise<void> {
+  const TIMEOUT_MS = 120000; // 120 seconds (2 minutes)
   const now = Date.now();
 
-  // Remove stale players who haven't sent updates in a while
   const staleUsernames: string[] = [];
+
   for (const [username, client] of Array.from(connectedClients.entries())) {
     if (now - client.lastPositionUpdate > TIMEOUT_MS) {
       staleUsernames.push(username);
@@ -368,9 +634,31 @@ async function broadcastPositionUpdates(): Promise<void> {
   }
 
   for (const username of staleUsernames) {
-    console.log(`Removing stale player ${username} (no updates for 2 minutes)`);
+    const client = connectedClients.get(username);
+    if (!client) continue;
+
+    console.log(
+      `Removing inactive player ${username} from level ${client.level}`
+    );
+
+    // Remove from active players set
+    await removeActivePlayer(username, client.level);
+
+    // Remove from connected clients
     connectedClients.delete(username);
+
+    // Update last active timestamp
+    const playerKey = `player:${username}:${client.level}`;
+    const exists = await redisStore.exists(playerKey);
+    if (exists) {
+      await redisStore.hSet(playerKey, "lastActive", now.toString());
+    }
   }
+}
+
+async function broadcastPositionUpdates(): Promise<void> {
+  const REGION_SIZE = 15;
+  const CHUNK_SIZE = 24;
 
   // Group players by region based on their position
   const regionPlayers = new Map<string, Array<Player>>();
@@ -572,6 +860,7 @@ interface InitialConnectionRequest {
 }
 
 interface InitialConnectionResponse {
+  mode: "player" | "viewer";
   username: string;
   sessionId: string;
   level: string;
@@ -588,6 +877,12 @@ interface InitialConnectionResponse {
     blocks: Array<Block>;
   }>;
   players: Array<Player>;
+  playerData?: {
+    score: number;
+    friends: string[];
+    friendedBy: string[];
+  };
+  message?: string;
 }
 
 app.post("/api/connect", async (req, res) => {
@@ -601,15 +896,8 @@ app.post("/api/connect", async (req, res) => {
     `HTTP connect request from ${username} for level "${actualLevel}"`
   );
 
-  // Add client to connected clients
-  const client: ConnectedClient = {
-    username,
-    level: actualLevel,
-    lastPositionUpdate: Date.now(),
-    position: { x: 0, y: 20, z: 0 },
-    rotation: { x: 0, y: 0 },
-  };
-  connectedClients.set(username, client);
+  // Check if player is already active in this level
+  const isActive = await isPlayerActive(username, actualLevel);
 
   // Initialize and get terrain seeds
   await initializeTerrainSeeds(actualLevel);
@@ -681,7 +969,48 @@ app.post("/api/connect", async (req, res) => {
       rotation: c.rotation || { x: 0, y: 0, z: 0 },
     }));
 
+  if (isActive) {
+    // Player already active - enter Viewer Mode
+    console.log(`${username} already active, entering Viewer Mode`);
+
+    // Do NOT add to connectedClients map (viewers are invisible)
+    const response: InitialConnectionResponse = {
+      mode: "viewer",
+      username,
+      sessionId: `${username}_viewer_${Date.now()}`,
+      level: actualLevel,
+      terrainSeeds,
+      spawnPosition,
+      initialChunks,
+      players,
+      message:
+        "You are already playing from another device. Entering Viewer Mode.",
+    };
+
+    return res.json(response);
+  }
+
+  // Player not active - enter Player Mode
+  console.log(`${username} entering Player Mode`);
+
+  // Add to active players set
+  await addActivePlayer(username, actualLevel);
+
+  // Initialize or load player data
+  const playerData = await getOrCreatePlayerData(username, actualLevel);
+
+  // Add to connected clients
+  const client: ConnectedClient = {
+    username,
+    level: actualLevel,
+    lastPositionUpdate: Date.now(),
+    position: { x: 0, y: 20, z: 0 },
+    rotation: { x: 0, y: 0 },
+  };
+  connectedClients.set(username, client);
+
   const response: InitialConnectionResponse = {
+    mode: "player",
     username,
     sessionId: username, // Use username as sessionId for compatibility
     level: actualLevel,
@@ -689,6 +1018,11 @@ app.post("/api/connect", async (req, res) => {
     spawnPosition,
     initialChunks,
     players,
+    playerData: {
+      score: playerData.score,
+      friends: playerData.friends,
+      friendedBy: playerData.friendedBy,
+    },
   };
 
   res.json(response);
@@ -705,12 +1039,255 @@ app.post("/api/disconnect", async (req, res) => {
 
   console.log(`HTTP disconnect request from ${username} for level "${level}"`);
 
+  // Remove from active players set
+  await removeActivePlayer(username, level);
+
   // Remove client from connected clients
   connectedClients.delete(username);
 
-  // No need to broadcast - the next position update will naturally exclude this player
-  console.log(`Removed ${username} from connected clients`);
+  // Update last active timestamp in player data
+  const playerKey = `player:${username}:${level}`;
+  const exists = await redisStore.exists(playerKey);
+  if (exists) {
+    await redisStore.hSet(playerKey, "lastActive", Date.now().toString());
+  }
 
+  // No need to broadcast - the next position update will naturally exclude this player
+  console.log(`Removed ${username} from connected clients and active players`);
+
+  res.json({ ok: true });
+});
+
+// Task 2.1: Friend management endpoint interfaces
+interface AddFriendRequest {
+  username: string;
+  level: string;
+  friendUsername: string;
+}
+
+interface AddFriendResponse {
+  ok: boolean;
+  message?: string;
+}
+
+interface RemoveFriendRequest {
+  username: string;
+  level: string;
+  friendUsername: string;
+}
+
+interface RemoveFriendResponse {
+  ok: boolean;
+  message?: string;
+}
+
+// Task 2.1: Add friend endpoint (synchronous HTTP request/response)
+app.post("/api/friends/add", async (req, res) => {
+  const { username, level, friendUsername } = req.body as AddFriendRequest;
+
+  console.log(`${username} attempting to add friend ${friendUsername}`);
+
+  try {
+    // Validate: can't add self
+    if (username === friendUsername) {
+      return res.status(400).json({
+        ok: false,
+        message: "Cannot add yourself as friend",
+      });
+    }
+
+    // Add friend (creates player data if needed)
+    await addPlayerFriend(username, level, friendUsername);
+
+    // Get updated friends list to return
+    const playerKey = `player:${username}:${level}`;
+    const friendsData = await redisStore.hGet(playerKey, "friends");
+    const friends: string[] = friendsData
+      ? JSON.parse(friendsData.toString())
+      : [];
+
+    console.log(`${username} successfully added ${friendUsername} as friend`);
+
+    res.json({
+      ok: true,
+      friends,
+      message: `Added ${friendUsername} as friend`,
+    });
+  } catch (error) {
+    console.error("Failed to add friend:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to add friend",
+    });
+  }
+});
+
+// Task 2.2: Remove friend endpoint (synchronous HTTP request/response)
+app.post("/api/friends/remove", async (req, res) => {
+  const { username, level, friendUsername } = req.body as RemoveFriendRequest;
+
+  console.log(`${username} attempting to remove friend ${friendUsername}`);
+
+  try {
+    // Remove friend
+    await removePlayerFriend(username, level, friendUsername);
+
+    // Get updated friends list to return
+    const playerKey = `player:${username}:${level}`;
+    const friendsData = await redisStore.hGet(playerKey, "friends");
+    const friends: string[] = friendsData
+      ? JSON.parse(friendsData.toString())
+      : [];
+
+    console.log(
+      `${username} successfully removed ${friendUsername} from friends`
+    );
+
+    res.json({
+      ok: true,
+      friends,
+      message: `Removed ${friendUsername} from friends`,
+    });
+  } catch (error) {
+    console.error("Failed to remove friend:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to remove friend",
+    });
+  }
+});
+
+// Task 3.1: Upvote endpoint interfaces
+interface UpvoteRequest {
+  username: string; // The upvoter
+  level: string;
+  builderUsername: string; // The builder being upvoted
+}
+
+interface UpvoteResponse {
+  ok: boolean;
+  message?: string;
+}
+
+/**
+ * Task 3.1: Process upvote asynchronously
+ * Increments builder's score and broadcasts update to all clients in level
+ */
+async function processUpvote(
+  username: string,
+  level: string,
+  builderUsername: string
+): Promise<void> {
+  // Validate: can't upvote self
+  if (username === builderUsername) {
+    throw new Error("Cannot upvote yourself");
+  }
+
+  // Validate: builder must exist
+  const builderKey = `player:${builderUsername}:${level}`;
+  const builderExists = await redisStore.exists(builderKey);
+
+  if (!builderExists) {
+    throw new Error("Builder not found");
+  }
+
+  // Increment builder's score in Redis using hIncrBy
+  const newScore = await redisStore.hIncrBy(builderKey, "score", 1);
+
+  // Update scores sorted set using zIncrBy for leaderboard
+  await redisStore.zIncrBy(`scores:${level}`, 1, builderUsername);
+
+  // Increment totalUpvotesReceived counter for builder
+  await redisStore.hIncrBy(builderKey, "totalUpvotesReceived", 1);
+
+  // Increment totalUpvotesGiven counter for upvoter
+  const upvoterKey = `player:${username}:${level}`;
+  await redisStore.hIncrBy(upvoterKey, "totalUpvotesGiven", 1);
+
+  console.log(
+    `${builderUsername} upvoted by ${username}, new score: ${newScore}`
+  );
+}
+
+// Task 3.1: Upvote endpoint (fire-and-forget with async processing)
+app.post("/api/upvote", async (req, res) => {
+  const { username, level, builderUsername } = req.body as UpvoteRequest;
+
+  console.log(`${username} upvoting ${builderUsername} in level ${level}`);
+
+  // Immediate response for snappy UX (fire-and-forget pattern)
+  res.json({ ok: true, message: "Upvote processing" });
+
+  // Async processing (don't await) - fire-and-forget pattern
+  processUpvote(username, level, builderUsername).catch((error) => {
+    console.error("Failed to process upvote:", error);
+    // In production, this would be sent to error tracking service
+  });
+});
+
+// Task 5.1: Chat endpoint interfaces
+interface ChatRequest {
+  username: string;
+  level: string;
+  message: string;
+}
+
+interface ChatResponse {
+  ok: boolean;
+  message?: string;
+}
+
+interface ChatBroadcast {
+  type: "chat-message";
+  username: string;
+  message: string;
+  timestamp: number;
+}
+
+// Task 5.2-5.4: POST /api/chat endpoint
+app.post("/api/chat", async (req, res) => {
+  const { username, level, message } = req.body as ChatRequest;
+
+  // Task 5.4: Log incoming chat message
+  console.log(`Chat from ${username}: ${message}`);
+
+  // Task 5.2: Validate message is not empty
+  if (!message || !message.trim()) {
+    return res.status(400).json({ ok: false, message: "Message is required" });
+  }
+
+  // Task 5.2: Validate message length <= 200 characters
+  if (message.length > 200) {
+    return res
+      .status(400)
+      .json({ ok: false, message: "Message too long (max 200 characters)" });
+  }
+
+  // Task 5.2: Get player's current position from connectedClients
+  const client = connectedClients.get(username);
+  if (!client) {
+    return res.status(404).json({ ok: false, message: "Player not connected" });
+  }
+
+  // Task 5.3: Calculate regional channel from position
+  const position = client.position || { x: 0, y: 20, z: 0 };
+  const channel = getRegionalChannelFromPosition(level, position);
+
+  // Task 5.3: Create ChatBroadcast object
+  const broadcast: ChatBroadcast = {
+    type: "chat-message",
+    username,
+    message: message.trim(),
+    timestamp: Date.now(),
+  };
+
+  // Task 5.3: Broadcast to regional channel
+  await realtime.send(channel, broadcast);
+
+  // Task 5.4: Log broadcast with channel name
+  console.log(`Broadcast chat to channel ${channel}`);
+
+  // Task 5.3: Return immediate response
   res.json({ ok: true });
 });
 
@@ -797,9 +1374,10 @@ function getRegionalChannelFromPosition(
   level: string,
   position: Position
 ): string {
+  const REGION_SIZE = 15; // Must match client-side REGION_SIZE
   const { chunkX, chunkZ } = getChunkCoordinates(position.x, position.z);
-  const regionX = Math.floor(chunkX / 5); // REGION_SIZE = 5
-  const regionZ = Math.floor(chunkZ / 5);
+  const regionX = Math.floor(chunkX / REGION_SIZE);
+  const regionZ = Math.floor(chunkZ / REGION_SIZE);
   return `region:${level}:${regionX}:${regionZ}`;
 }
 
@@ -1069,10 +1647,18 @@ async function start() {
       });
     }, 100); // 100ms = 10 times per second
 
+    // Task 1.5: Start inactivity cleanup (every 10 seconds)
+    setInterval(() => {
+      cleanupInactivePlayers().catch((error) => {
+        console.error("Error cleaning up inactive players:", error);
+      });
+    }, 10000); // 10 seconds
+
     httpServer.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`WebSocket server ready`);
       console.log(`Position updates broadcasting at 10 Hz`);
+      console.log(`Inactivity cleanup running every 10 seconds`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

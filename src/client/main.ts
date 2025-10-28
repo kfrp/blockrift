@@ -5,6 +5,8 @@ import Terrain from "./terrain";
 import UI from "./ui";
 import Audio from "./ui/audio";
 import MultiplayerManager from "./multiplayer";
+import { ChatManager } from "./chatManager";
+import { ChatUI } from "./ui/chatUI";
 import * as THREE from "three";
 const core = new Core();
 const camera = core.camera;
@@ -16,15 +18,48 @@ const audio = new Audio(camera);
 
 const terrain = new Terrain(scene, camera);
 
-// Initialize multiplayer manager
-const multiplayer = new MultiplayerManager(scene, camera, terrain);
-
 // Get level from URL parameter or use "default"
 // Example: http://localhost:5173/?level=world1
 const urlParams = new URLSearchParams(window.location.search);
 const level = urlParams.get("level") || "default";
 
-const control = new Control(scene, camera, player, terrain, audio, multiplayer);
+// Create a temporary multiplayer instance to get playerModeManager
+// This is needed because playerModeManager is created inside MultiplayerManager
+const tempMultiplayer = new MultiplayerManager(
+  scene,
+  camera,
+  terrain,
+  null as any
+);
+const playerModeManager = tempMultiplayer.getPlayerModeManager();
+
+// Initialize ChatUI (will receive chatManager reference after it's created)
+let chatUI: ChatUI;
+
+// Initialize ChatManager with playerModeManager and callback
+const chatManager = new ChatManager(playerModeManager, () =>
+  chatUI?.updateChatDisplay()
+);
+
+// Initialize ChatUI with chatManager and playerModeManager
+chatUI = new ChatUI(chatManager, playerModeManager);
+
+// Initialize multiplayer manager with chatManager
+const multiplayer = new MultiplayerManager(scene, camera, terrain, chatManager);
+
+// Transfer the playerModeManager instance to the real multiplayer
+// This ensures the same instance is used across all components
+(multiplayer as any).playerModeManager = playerModeManager;
+
+const control = new Control(
+  scene,
+  camera,
+  player,
+  terrain,
+  audio,
+  multiplayer,
+  chatUI
+);
 
 const ui = new UI(terrain, control);
 
@@ -34,6 +69,9 @@ multiplayer
   .then(() => {
     // Update username label after connection
     ui.setUsername(multiplayer.getUsername());
+
+    // Initialize player mode UI
+    ui.initializePlayerModeUI(multiplayer);
   })
   .catch((error) => {
     console.error("Failed to connect to multiplayer server:", error);

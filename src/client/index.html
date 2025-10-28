@@ -31,9 +31,10 @@
       }
 
       .start {
-        background-image: url(/assets/menu.jpeg);
+        background-image: url(/assets/menu.png);
         background-repeat: no-repeat;
-        background-size: 100% 100%;
+        background-size: contain;
+        background-position: center;
       }
 
       .start #exit {
@@ -327,16 +328,503 @@
         -webkit-user-select: none;
         user-select: none;
       }
+
+      /* Player Mode UI Styles */
+      .builders-list {
+        position: fixed;
+        left: 10px;
+        top: 10px;
+        width: 220px;
+
+        background-color: hsla(0, 0%, 11%, 0.85);
+        border: 2px solid rgb(141, 139, 139);
+        color: white;
+        z-index: 10;
+      }
+
+      .builders-list.expanded {
+        width: 220px;
+      }
+
+      .builders-list-header {
+        padding: 6px 12px;
+        background-color: hsla(0, 0%, 20%, 0.9);
+        font-weight: bold;
+        border-bottom: 1px solid rgb(141, 139, 139);
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+        min-height: 28px;
+      }
+
+      .builders-list-header:hover {
+        background-color: hsla(0, 0%, 25%, 0.9);
+      }
+
+      .builders-count {
+        font-size: 0.9rem;
+      }
+
+      .builders-toggle {
+        font-size: 0.8rem;
+        transition: transform 0.3s ease;
+      }
+
+      .builders-list-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .builders-list.expanded .builders-list-content {
+        max-height: 300px;
+      }
+
+      .builders-list-scroll {
+        max-height: 300px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 4px;
+      }
+
+      /* Custom scrollbar */
+      .builders-list-scroll::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .builders-list-scroll::-webkit-scrollbar-track {
+        background: hsla(0, 0%, 15%, 0.5);
+      }
+
+      .builders-list-scroll::-webkit-scrollbar-thumb {
+        background: hsla(0, 0%, 40%, 0.8);
+        border-radius: 3px;
+      }
+
+      .builders-list-scroll::-webkit-scrollbar-thumb:hover {
+        background: hsla(0, 0%, 50%, 0.9);
+      }
+
+      .builders-list.collapsed .builders-list-content {
+        display: none;
+      }
+
+      .builder-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 10px;
+        margin: 2px 0;
+        background-color: hsla(0, 0%, 15%, 0.7);
+        border: 1px solid rgb(100, 100, 100);
+        min-height: 32px;
+      }
+
+      .builder-item:hover {
+        background-color: hsla(0, 0%, 25%, 0.9);
+      }
+
+      .builder-item.highlighted {
+        background-color: hsla(120, 100%, 25%, 0.8);
+        border: 1px solid #17cd07;
+      }
+
+      .friend-btn {
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        margin-right: 6px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 3px;
+        color: white;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+
+      .friend-btn:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: scale(1.1);
+      }
+
+      .friend-btn-active {
+        background-color: rgba(23, 205, 7, 0.3);
+        border-color: #17cd07;
+        color: #17cd07;
+      }
+
+      .friend-btn-active:hover {
+        background-color: rgba(23, 205, 7, 0.4);
+      }
+
+      .builder-name {
+        cursor: pointer;
+        flex: 1;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .builder-name:hover {
+        color: #17cd07;
+      }
+
+      .builder-item.highlighted .builder-name {
+        color: #17cd07;
+        font-weight: bold;
+      }
+
+      .upvote-btn {
+        background-color: #218306;
+        border: 1px solid #17cd07;
+        color: white;
+        cursor: pointer;
+        padding: 2px 6px;
+        font-size: 1.1rem;
+        margin-left: 8px;
+        min-width: 28px;
+        min-height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .upvote-btn:hover:not(.upvote-disabled) {
+        background-color: #17cd07;
+      }
+
+      .upvote-btn.upvote-disabled {
+        background-color: #545655;
+        border: 1px solid #727272;
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      .no-builders {
+        padding: 12px;
+        text-align: center;
+        color: #a4a4a4;
+        font-size: 0.9rem;
+      }
+
+      .friends-list {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 320px;
+        max-height: 500px;
+
+        background-color: #727272;
+        border-left: 2px solid #a4a4a4;
+        border-top: 2px solid #a4a4a4;
+        border-bottom: 2px solid #545655;
+        border-right: 2px solid #545655;
+        box-shadow: 0 0 0 2px black;
+
+        color: white;
+        z-index: 100;
+      }
+
+      .friends-list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        background-color: hsla(0, 0%, 20%, 0.9);
+        font-weight: bold;
+        border-bottom: 2px solid #545655;
+      }
+
+      .friends-close-btn {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        line-height: 1;
+      }
+
+      .friends-close-btn:hover {
+        color: #17cd07;
+      }
+
+      .friends-list-content {
+        padding: 12px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .friend-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        margin: 4px 0;
+        background-color: hsla(0, 0%, 15%, 0.7);
+        border: 1px solid rgb(100, 100, 100);
+      }
+
+      .friend-name {
+        flex: 1;
+      }
+
+      .remove-friend-btn {
+        background-color: #8b0000;
+        border: 1px solid #a00;
+        color: white;
+        cursor: pointer;
+        padding: 4px 12px;
+        font-size: 0.85rem;
+      }
+
+      .remove-friend-btn:hover {
+        background-color: #a00;
+      }
+
+      .no-friends {
+        padding: 20px;
+        text-align: center;
+        color: #a4a4a4;
+      }
+
+      .friends-list-footer {
+        padding: 12px;
+        border-top: 2px solid #545655;
+        display: flex;
+        gap: 8px;
+      }
+
+      .friend-input {
+        flex: 1;
+        padding: 8px;
+        background-color: #dddddd;
+        border: 2px solid black;
+        font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+        font-size: 0.9rem;
+      }
+
+      .add-friend-btn {
+        padding: 8px 16px;
+        background-color: #218306;
+        border-left: 2px solid #17cd07;
+        border-top: 2px solid #17cd07;
+        border-bottom: 2px solid #004e00;
+        border-right: 2px solid #004e00;
+        color: white;
+        cursor: pointer;
+        font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+        font-size: 0.9rem;
+      }
+
+      .add-friend-btn:hover {
+        background-color: #17cd07;
+      }
+
+      .friends-message {
+        padding: 8px 12px;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      .friends-message-success {
+        background-color: #218306;
+        color: white;
+      }
+
+      .friends-message-error {
+        background-color: #8b0000;
+        color: white;
+      }
+
+      .viewer-mode-notification {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 200;
+
+        background-color: #8b0000;
+        border: 3px solid #ff0000;
+        box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+        color: white;
+        padding: 20px 30px;
+        text-align: center;
+        max-width: 400px;
+      }
+
+      .viewer-mode-title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 12px;
+      }
+
+      .viewer-mode-message {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .block-removal-feedback {
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 50;
+
+        background-color: hsla(0, 0%, 11%, 0.9);
+        border: 2px solid #ff6b6b;
+        color: #ff6b6b;
+        padding: 12px 20px;
+        font-size: 1rem;
+        text-align: center;
+        max-width: 500px;
+      }
+
+      .temp-message {
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 150;
+
+        padding: 12px 24px;
+        font-size: 1rem;
+        text-align: center;
+        border: 2px solid;
+        animation: fadeInOut 3s ease-in-out;
+      }
+
+      .temp-message-success {
+        background-color: #218306;
+        border-color: #17cd07;
+        color: white;
+      }
+
+      .temp-message-error {
+        background-color: #8b0000;
+        border-color: #ff0000;
+        color: white;
+      }
+
+      @keyframes fadeInOut {
+        0% {
+          opacity: 0;
+        }
+        10% {
+          opacity: 1;
+        }
+        90% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+
+      /* Chat System Styles */
+      .chat-input-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.7);
+        padding: 20px;
+        border-radius: 8px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .chat-input {
+        width: 400px;
+        padding: 12px 16px;
+        font-size: 16px;
+        font-family: "Courier New", monospace;
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 2px solid #666;
+        border-radius: 4px;
+        outline: none;
+        color: #333;
+      }
+
+      .chat-input:focus {
+        border-color: #17cd07;
+        background-color: white;
+      }
+
+      .chat-input::placeholder {
+        color: #999;
+      }
+
+      .chat-display {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        width: 300px;
+        max-height: 200px;
+        overflow: hidden;
+        z-index: 100;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .chat-message {
+        background-color: rgba(0, 0, 0, 0.6);
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: "Courier New", monospace;
+        color: white;
+        word-wrap: break-word;
+        line-height: 1.4;
+        animation: fadeIn 0.2s ease-in;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .chat-username {
+        font-weight: bold;
+        color: #17cd07;
+        margin-right: 4px;
+      }
+
+      .chat-text {
+        color: #ffffff;
+      }
     </style>
   </head>
   <body>
     <script type="module" src="./main.ts"></script>
-    <div class="menu start">
+    <div class="menu start" style="padding-top: 400px">
       <button id="play" class="button">Play</button>
-      <button id="save" class="button">Load Game</button>
       <button id="setting" class="button">Setting</button>
       <button id="feature" class="button">Guide</button>
-      <button id="exit" class="button">Exit</button>
     </div>
 
     <div class="features hidden">

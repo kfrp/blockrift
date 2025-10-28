@@ -20,6 +20,7 @@ enum Side {
 }
 
 import MultiplayerManager from "./multiplayer";
+import { ChatUI } from "./ui/chatUI";
 
 export default class Control {
   constructor(
@@ -28,7 +29,8 @@ export default class Control {
     player: Player,
     terrain: Terrain,
     audio: Audio,
-    multiplayer: MultiplayerManager
+    multiplayer: MultiplayerManager,
+    chatUI: ChatUI
   ) {
     this.scene = scene;
     this.camera = camera;
@@ -38,6 +40,7 @@ export default class Control {
     this.control = new PointerLockControls(camera, document.body);
     this.audio = audio;
     this.multiplayer = multiplayer;
+    this.chatUI = chatUI;
 
     this.far = this.player.body.height; // Used for downward collision detection
 
@@ -53,6 +56,7 @@ export default class Control {
   control: PointerLockControls;
   audio: Audio;
   multiplayer: MultiplayerManager;
+  chatUI: ChatUI;
   // Current velocity in 3D space (x=forward/back, y=up/down, z=left/right)
   velocity = new THREE.Vector3(0, 0, 0);
 
@@ -158,12 +162,28 @@ export default class Control {
    * This sets velocity based on key presses and player mode
    */
   setMovementHandler = (e: KeyboardEvent) => {
+    // Check if chat input is active
+    if (this.chatUI.isInputActive()) {
+      // Only handle Escape key to close chat
+      if (e.key === "Escape") {
+        this.chatUI.hideInputAndRelock();
+      }
+      // Let all other keys go to the input field
+      return;
+    }
+
     // Ignore repeated keydown events (holding key)
     if (e.repeat) {
       return;
     }
 
     switch (e.key) {
+      case "c":
+      case "C":
+        // Open chat input and prevent default to avoid typing 'c'
+        e.preventDefault();
+        this.chatUI.showInput();
+        return;
       case "q":
         // Toggle between walking and flying mode
         if (this.player.mode === Mode.walking) {
@@ -265,6 +285,11 @@ export default class Control {
    * Handles keyup events to stop movement
    */
   resetMovementHandler = (e: KeyboardEvent) => {
+    // Don't process keyup events when chat is active (except Escape which is handled in setMovementHandler)
+    if (this.chatUI.isInputActive()) {
+      return;
+    }
+
     if (e.repeat) {
       return;
     }
@@ -339,6 +364,11 @@ export default class Control {
    * It uses the block already identified by the Highlight system.
    */
   mousedownHandler = (e: MouseEvent) => {
+    // Don't process mouse clicks when chat is active
+    if (this.chatUI.isInputActive()) {
+      return;
+    }
+
     e.preventDefault();
 
     // Get the intersection result directly from the highlight system.
@@ -369,6 +399,34 @@ export default class Control {
               // Still generate adjacent blocks to handle edge cases
               this.terrain.generateAdjacentBlocks(position);
               return;
+            }
+
+            // Check permissions BEFORE removing the block visually
+            // Find the block in customBlocks to check ownership
+            let blockToCheck: Block | null = null;
+            for (const customBlock of this.terrain.customBlocks) {
+              if (
+                customBlock.x === position.x &&
+                customBlock.y === position.y &&
+                customBlock.z === position.z &&
+                customBlock.placed
+              ) {
+                blockToCheck = customBlock;
+                break;
+              }
+            }
+
+            // If this is a custom block, check permissions
+            if (blockToCheck) {
+              const permissionCheck = this.multiplayer
+                .getPlayerModeManager()
+                .canRemoveBlock(blockToCheck);
+              if (!permissionCheck.allowed) {
+                console.warn(
+                  `Block removal prevented: ${permissionCheck.reason}`
+                );
+                return;
+              }
             }
 
             // Remove the block by setting its matrix to zero
@@ -468,6 +526,9 @@ export default class Control {
               "remove"
             );
 
+            // Optimistically update builders list
+            this.multiplayer.updateBuildersListOptimistically();
+
             // Generate blocks beneath/around removed block (for infinite depth)
             this.terrain.generateAdjacentBlocks(position);
           }
@@ -544,6 +605,9 @@ export default class Control {
               this.holdingBlock,
               "place"
             );
+
+            // Optimistically update builders list
+            this.multiplayer.updateBuildersListOptimistically();
           }
         }
         break;
@@ -571,6 +635,11 @@ export default class Control {
    * Handle number key presses to change selected block (hotbar)
    */
   changeHoldingBlockHandler = (e: KeyboardEvent) => {
+    // Don't change hotbar when chat is active
+    if (this.chatUI.isInputActive()) {
+      return;
+    }
+
     if (isNaN(parseInt(e.key)) || e.key === "0") {
       return;
     }
@@ -584,6 +653,11 @@ export default class Control {
    * Handle mouse wheel for scrolling through hotbar
    */
   wheelHandler = (e: WheelEvent) => {
+    // Don't change hotbar when chat is active
+    if (this.chatUI.isInputActive()) {
+      return;
+    }
+
     // Debounce wheel events
     if (!this.wheelGap) {
       this.wheelGap = true;

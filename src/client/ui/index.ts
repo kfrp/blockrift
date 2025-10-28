@@ -4,8 +4,12 @@ import Control from "../control";
 import Joystick from "./joystick";
 import { isMobile } from "../utils";
 import * as THREE from "three";
+import PlayerModeUI from "./playerModeUI";
+import type MultiplayerManager from "../multiplayer";
 
 export default class UI {
+  playerModeUI: PlayerModeUI | null = null;
+
   constructor(terrain: Terrain, control: Control) {
     this.bag = new Bag();
     this.joystick = new Joystick(control);
@@ -225,5 +229,55 @@ export default class UI {
 
   setUsername = (username: string) => {
     this.usernameLabel.innerHTML = username;
+  };
+
+  /**
+   * Initialize player mode UI after multiplayer connection
+   */
+  initializePlayerModeUI = (multiplayer: MultiplayerManager) => {
+    const playerModeManager = multiplayer.getPlayerModeManager();
+    const builderRecognitionManager =
+      multiplayer.getBuilderRecognitionManager();
+    const upvoteManager = multiplayer.getUpvoteManager();
+
+    this.playerModeUI = new PlayerModeUI(
+      playerModeManager,
+      builderRecognitionManager,
+      upvoteManager
+    );
+
+    // Show viewer mode notification if in viewer mode
+    if (playerModeManager.isViewerMode()) {
+      this.playerModeUI.showViewerModeNotification();
+    }
+
+    // Set up UI update callback in multiplayer manager
+    multiplayer.setUIUpdateCallback(() => {
+      if (this.playerModeUI) {
+        this.playerModeUI.updateFriendsList();
+        this.playerModeUI.updateBuildersList();
+      }
+    });
+
+    // Set up block removal feedback callback
+    multiplayer.setBlockRemovalFeedbackCallback((message: string) => {
+      if (this.playerModeUI) {
+        this.playerModeUI.showBlockRemovalFeedback(message);
+      }
+    });
+
+    // Add keyboard shortcut to toggle friends list (F key when not in pointer lock)
+    document.body.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "F" && !document.pointerLockElement && this.playerModeUI) {
+        this.playerModeUI.toggleFriendsList();
+      }
+    });
+  };
+
+  /**
+   * Get player mode UI instance
+   */
+  getPlayerModeUI = (): PlayerModeUI | null => {
+    return this.playerModeUI;
   };
 }

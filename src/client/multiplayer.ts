@@ -4,6 +4,10 @@ import Terrain, { BlockType } from "./terrain";
 import Block from "./mesh/block";
 import PlayerEntityRenderer from "./playerEntityRenderer";
 import { ChunkStateManager } from "./chunkStateManager";
+import { PlayerModeManager } from "./playerModeManager";
+import { BuilderRecognitionManager } from "./builderRecognitionManager";
+import { UpvoteManager } from "./upvoteManager";
+import { ChatManager } from "./chatManager";
 
 /**
  * Represents another player in the multiplayer world
@@ -65,16 +69,33 @@ export default class MultiplayerManager {
   private camera: THREE.PerspectiveCamera;
   private chunkStateManager: ChunkStateManager;
   private cleanupInterval: number | null = null;
+  private playerModeManager: PlayerModeManager;
+  private builderRecognitionManager: BuilderRecognitionManager;
+  private upvoteManager: UpvoteManager;
+  private chatManager: ChatManager;
+  private uiUpdateCallback: (() => void) | null = null;
+  private blockRemovalFeedbackCallback: ((message: string) => void) | null =
+    null;
+  private currentPlayerChunk: { x: number; z: number } = { x: 0, z: 0 };
 
   constructor(
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
-    terrain: Terrain
+    terrain: Terrain,
+    chatManager: ChatManager
   ) {
     this.scene = scene;
     this.camera = camera;
     this.terrain = terrain;
+    this.chatManager = chatManager;
     this.chunkStateManager = new ChunkStateManager(terrain.distance);
+    this.playerModeManager = new PlayerModeManager();
+    this.builderRecognitionManager = new BuilderRecognitionManager(
+      terrain,
+      this.playerModeManager,
+      scene
+    );
+    this.upvoteManager = new UpvoteManager("default", this.playerModeManager);
   }
 
   async connect(level: string = "default"): Promise<void> {
@@ -86,7 +107,13 @@ export default class MultiplayerManager {
       });
 
       const data = await response.json();
+
+      // Initialize player mode from connection response
+      this.playerModeManager.initialize(data);
       this.setUsername(data.username);
+
+      // Recreate upvote manager with correct level
+      this.upvoteManager = new UpvoteManager(level, this.playerModeManager);
 
       if (data.terrainSeeds && data.terrainSeeds.seed !== undefined) {
         this.terrain.setSeeds(data.terrainSeeds.seed);
@@ -99,9 +126,10 @@ export default class MultiplayerManager {
         this.terrain.generate();
       }
 
+      // Create player entities for other players (never for self in any mode)
       if (data.players && Array.isArray(data.players)) {
         for (const playerData of data.players) {
-          if (playerData.username !== this.username) {
+          if (playerData.username !== data.username) {
             const position = new THREE.Vector3(
               playerData.position.x,
               playerData.position.y,
@@ -125,6 +153,7 @@ export default class MultiplayerManager {
 
       this.chunkStateManager.setConnection(data.username, level);
 
+      // Subscribe to regional channels in both modes
       if (data.spawnPosition) {
         const spawnChunkX = Math.floor(
           data.spawnPosition.x / this.terrain.chunkSize
@@ -133,14 +162,27 @@ export default class MultiplayerManager {
           data.spawnPosition.z / this.terrain.chunkSize
         );
 
+        // Initialize current player chunk
+        this.currentPlayerChunk = { x: spawnChunkX, z: spawnChunkZ };
+
         await this.chunkStateManager.updateSubscriptions(
           spawnChunkX,
           spawnChunkZ,
           (broadcastData) => this.handleMessage(broadcastData)
         );
+
+        // Update builders list after subscription changes
+        this.builderRecognitionManager.updateBuilders();
+        this.triggerUIUpdate();
       }
 
-      this.chunkStateManager.syncOfflineModifications();
+      // Only sync offline modifications in player mode
+      if (this.playerModeManager.isPlayerMode()) {
+        this.chunkStateManager.syncOfflineModifications();
+      }
+
+      // Update builders list after initial chunks are loaded
+      this.builderRecognitionManager.updateBuilders();
 
       this.cleanupInterval = window.setInterval(() => {
         this.cleanupStalePlayers();
@@ -197,6 +239,13 @@ export default class MultiplayerManager {
       return;
     }
     switch (data.type) {
+      case "chat-message":
+        this.chatManager.handleChatBroadcast({
+          username: data.username,
+          message: data.message,
+          timestamp: data.timestamp,
+        });
+        return;
       case "block-modify":
         this.handleBlockModification(data as BlockModificationMessage);
         break;
@@ -234,6 +283,10 @@ export default class MultiplayerManager {
       chunkData.chunkZ,
       blocks
     );
+
+    // Update builders list when chunks are loaded
+    this.builderRecognitionManager.updateBuilders();
+    this.triggerUIUpdate();
   }
 
   private handleBlockModification(data: BlockModificationMessage): void {
@@ -344,6 +397,13 @@ export default class MultiplayerManager {
         )
       );
     }
+
+    // Update builders list when blocks are modified
+    this.builderRecognitionManager.updateBuilders();
+    this.triggerUIUpdate();
+
+    // Refresh highlights if a builder is currently highlighted
+    this.builderRecognitionManager.refreshHighlightsIfActive();
   }
 
   private findAndRemoveBlock(position: THREE.Vector3): BlockType | null {
@@ -427,20 +487,87 @@ export default class MultiplayerManager {
     if (!this.username) {
       return;
     }
+
+    // Check if modifications are allowed
+    if (!this.playerModeManager.canModifyBlocks()) {
+      console.warn("Block modifications not allowed in current mode");
+      return;
+    }
+
+    // For removal, check ownership permissions
+    if (action === "remove") {
+      const block = this.findBlockAt(position);
+      if (block) {
+        const check = this.playerModeManager.canRemoveBlock(block);
+        if (!check.allowed) {
+          console.warn(`Block removal prevented: ${check.reason}`);
+          this.showBlockRemovalFeedback(
+            check.reason || "Cannot remove this block"
+          );
+          return;
+        }
+      }
+    }
+
     this.chunkStateManager.addModification(
       { x: position.x, y: position.y, z: position.z },
       blockType,
       action
     );
+
+    // Refresh highlights if a builder is currently highlighted
+    this.builderRecognitionManager.refreshHighlightsIfActive();
+  }
+
+  private findBlockAt(position: THREE.Vector3): Block | null {
+    for (const block of this.terrain.customBlocks) {
+      if (
+        block.x === position.x &&
+        block.y === position.y &&
+        block.z === position.z &&
+        block.placed
+      ) {
+        return block;
+      }
+    }
+    return null;
   }
 
   async sendPositionUpdate(
     position: THREE.Vector3,
     rotation: Rotation
   ): Promise<void> {
+    // Check mode before sending position updates
+    if (!this.playerModeManager.shouldSendPositionUpdates()) {
+      return;
+    }
+
     if (!this.username) {
       return;
     }
+
+    // Check if player moved to a new chunk and update subscriptions
+    const playerChunkX = Math.floor(position.x / this.terrain.chunkSize);
+    const playerChunkZ = Math.floor(position.z / this.terrain.chunkSize);
+
+    if (
+      playerChunkX !== this.currentPlayerChunk.x ||
+      playerChunkZ !== this.currentPlayerChunk.z
+    ) {
+      this.currentPlayerChunk = { x: playerChunkX, z: playerChunkZ };
+
+      // Update subscriptions and builders list
+      await this.chunkStateManager.updateSubscriptions(
+        playerChunkX,
+        playerChunkZ,
+        (broadcastData) => this.handleMessage(broadcastData)
+      );
+
+      // Update builders list after subscription changes
+      this.builderRecognitionManager.updateBuilders();
+      this.triggerUIUpdate();
+    }
+
     const body = {
       username: this.username,
       position: {
@@ -553,6 +680,67 @@ export default class MultiplayerManager {
         player.renderer.label.material.opacity = opacity;
       }
       player.renderer.label.lookAt(this.camera.position);
+    }
+  }
+
+  /**
+   * Get player mode manager for UI access
+   */
+  getPlayerModeManager(): PlayerModeManager {
+    return this.playerModeManager;
+  }
+
+  /**
+   * Get builder recognition manager for UI access
+   */
+  getBuilderRecognitionManager(): BuilderRecognitionManager {
+    return this.builderRecognitionManager;
+  }
+
+  /**
+   * Get upvote manager for UI access
+   */
+  getUpvoteManager(): UpvoteManager {
+    return this.upvoteManager;
+  }
+
+  /**
+   * Set UI update callback to refresh UI when data changes
+   */
+  setUIUpdateCallback(callback: () => void): void {
+    this.uiUpdateCallback = callback;
+  }
+
+  /**
+   * Set block removal feedback callback
+   */
+  setBlockRemovalFeedbackCallback(callback: (message: string) => void): void {
+    this.blockRemovalFeedbackCallback = callback;
+  }
+
+  /**
+   * Optimistically update builders list (called when player places/removes block)
+   */
+  updateBuildersListOptimistically(): void {
+    this.builderRecognitionManager.updateBuilders();
+    this.triggerUIUpdate();
+  }
+
+  /**
+   * Trigger UI update
+   */
+  private triggerUIUpdate(): void {
+    if (this.uiUpdateCallback) {
+      this.uiUpdateCallback();
+    }
+  }
+
+  /**
+   * Show block removal feedback
+   */
+  private showBlockRemovalFeedback(message: string): void {
+    if (this.blockRemovalFeedbackCallback) {
+      this.blockRemovalFeedbackCallback(message);
     }
   }
 }
