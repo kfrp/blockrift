@@ -104,19 +104,17 @@ export default class Control {
   far: number; // Dynamic raycast distance for downward collision
 
   // ===== BLOCK SELECTION (HOTBAR) =====
-  holdingBlock = BlockType.grass; // Currently selected block type
+  holdingBlock = BlockType.wood; // Currently selected block type
   // Array of 10 blocks available in hotbar (keys 1-9, 0)
   holdingBlocks = [
+    BlockType.wood,
+    BlockType.glass,
     BlockType.grass,
     BlockType.stone,
     BlockType.tree,
-    BlockType.wood,
     BlockType.diamond,
     BlockType.quartz,
-    BlockType.glass,
-    BlockType.grass,
-    BlockType.grass,
-    BlockType.grass,
+    BlockType.coal,
   ];
   holdingIndex = 0; // Current hotbar slot (0-9)
   wheelGap = false; // Debounce flag for mouse wheel
@@ -575,6 +573,14 @@ export default class Control {
             );
 
             // Add instance to the appropriate block type mesh
+            console.log(
+              "Placing block - holdingBlock:",
+              this.holdingBlock,
+              "holdingIndex:",
+              this.holdingIndex,
+              "holdingBlocks[holdingIndex]:",
+              this.holdingBlocks[this.holdingIndex]
+            );
             this.terrain.blocks[this.holdingBlock].setMatrixAt(
               this.terrain.getCount(this.holdingBlock),
               matrix
@@ -646,13 +652,25 @@ export default class Control {
       return;
     }
 
-    if (isNaN(parseInt(e.key)) || e.key === "0") {
+    if (
+      isNaN(parseInt(e.key)) ||
+      e.key === "0" ||
+      parseInt(e.key) > this.holdingBlocks.length
+    ) {
       return;
     }
-    this.holdingIndex = parseInt(e.key) - 1; // Keys 1-9 map to indices 0-8
+    this.holdingIndex = parseInt(e.key) - 1; // Keys 1-8 map to indices 0-7
 
     this.holdingBlock =
       this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
+    console.log(
+      "Key pressed:",
+      e.key,
+      "holdingIndex:",
+      this.holdingIndex,
+      "holdingBlock:",
+      this.holdingBlock
+    );
   };
 
   /**
@@ -683,6 +701,12 @@ export default class Control {
 
       this.holdingBlock =
         this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
+      console.log(
+        "Wheel scrolled - holdingIndex:",
+        this.holdingIndex,
+        "holdingBlock:",
+        this.holdingBlock
+      );
     }
   };
 

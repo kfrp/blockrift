@@ -48,7 +48,12 @@ export default class BlockHighlight {
 
     // Intersect against the array of all block meshes in the terrain.
     // This is the single source of truth for the rendered world.
-    const intersections = this.raycaster.intersectObjects(this.terrain.blocks);
+    // Pass recursive=false since blocks array contains InstancedMesh objects (not groups)
+    // Pass intersectTransparent=true to detect glass blocks
+    const intersections = this.raycaster.intersectObjects(
+      this.terrain.blocks,
+      false
+    );
     this.block = intersections[0] || null;
 
     // If we hit a block, create and position the highlight mesh.

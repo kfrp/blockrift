@@ -109,6 +109,7 @@ export default class Materials {
     glass: new THREE.MeshStandardMaterial({
       map: glassMaterial,
       transparent: true,
+      opacity: 0.7,
     }),
     bedrock: new THREE.MeshStandardMaterial({ map: bedrockMaterial }),
   };

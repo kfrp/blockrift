@@ -5,6 +5,7 @@ import wood from "../assets/block-icon/wood.png";
 import diamond from "../assets/block-icon/diamond.png";
 import quartz from "../assets/block-icon/quartz.png";
 import glass from "../assets/block-icon/glass.png";
+import coal from "../assets/block-icon/coal.png";
 import { isMobile } from "../utils";
 
 export default class Bag {
@@ -20,7 +21,7 @@ export default class Bag {
     document.body.appendChild(this.bag);
 
     document.body.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (isNaN(parseInt(e.key)) || e.key === "0") {
+      if (isNaN(parseInt(e.key)) || e.key === "0" || parseInt(e.key) > 8) {
         return;
       }
 
@@ -54,13 +55,13 @@ export default class Bag {
   }
   wheelGap = false;
   current = 0;
-  icon = [grass, stone, tree, wood, diamond, quartz, glass];
+  icon = [wood, glass, grass, stone, tree, diamond, quartz, coal];
   iconIndex = 0;
   y = 0;
 
   bag = document.createElement("div");
 
-  items = new Array(10).fill(null).map(() => {
+  items = new Array(8).fill(null).map(() => {
     let item = document.createElement("div");
     item.className = "item";
 

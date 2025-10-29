@@ -113,7 +113,12 @@ export class PlayerModeManager {
     }
 
     // Non-custom blocks can always be removed
-    if (!block.placed) {
+    if (
+      !block.placed ||
+      !block.username ||
+      typeof block.username !== "string" ||
+      block.username.trim() === ""
+    ) {
       return { allowed: true };
     }
 

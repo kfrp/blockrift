@@ -16,18 +16,21 @@
     "test:ui": "vitest --ui"
   },
   "devDependencies": {
-    "@types/express": "^5.0.4",
+    "@types/express": "5.0.1",
     "@types/node": "^24.9.1",
     "@types/three": "^0.180.0",
     "@types/ws": "^8.18.1",
     "@vitest/ui": "^4.0.3",
-    "concurrently": "^9.2.1",
-    "typescript": "^5.9.3",
-    "vite": "^7.1.11",
+    "concurrently": "9.1.2",
+    "dotenv-cli": "8.0.0",
+    "typescript": "5.8.2",
+    "vite": "6.2.4",
     "vitest": "^4.0.3"
   },
   "dependencies": {
-    "express": "^5.1.0",
+    "@devvit/web": "0.12.1",
+    "devvit": "0.12.1",
+    "express": "5.1.0",
     "redis": "^5.9.0",
     "three": "^0.180.0",
     "ws": "^8.18.3"
