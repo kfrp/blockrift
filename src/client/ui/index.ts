@@ -25,10 +25,11 @@ export default class UI {
 
     // play
     this.play?.addEventListener("click", () => {
+      console.log("[UI] Play button clicked");
       if (this.play?.innerHTML === "Play") {
         this.onPlay();
       }
-      !isMobile && control.control.lock();
+      !isMobile && this.activateCamera(control);
     });
 
     // save load - disabled in multiplayer mode
@@ -38,7 +39,7 @@ export default class UI {
       );
       // In multiplayer mode, the server manages world state
       // Local save/load is not supported
-      !isMobile && control.control.lock();
+      !isMobile && this.activateCamera(control);
     });
 
     // guide
@@ -103,8 +104,10 @@ export default class UI {
     // menu and fullscreen
     document.body.addEventListener("keydown", (e: KeyboardEvent) => {
       // menu
-      if (e.key === "e" && document.pointerLockElement) {
-        !isMobile && control.control.unlock();
+      if (e.key === "e" || e.key === "E") {
+        if (control.cameraController.isActive) {
+          !isMobile && this.deactivateCamera(control);
+        }
       }
 
       // fullscreen
@@ -122,26 +125,42 @@ export default class UI {
       this.onExit();
     });
 
-    // play / pause handler
-    document.addEventListener("pointerlockchange", () => {
-      if (document.pointerLockElement) {
-        this.onPlay();
-      } else {
-        this.onPause();
-      }
-    });
+    // No longer need pointer lock change handler
 
     // disable context menu
     document.addEventListener("contextmenu", (e) => {
       e.preventDefault();
     });
 
-    // fallback lock handler
+    // fallback activation handler
     document.querySelector("canvas")?.addEventListener("click", (e: Event) => {
       e.preventDefault();
-      !isMobile && control.control.lock();
+      if (!control.cameraController.isActive) {
+        !isMobile && this.activateCamera(control);
+      }
     });
   }
+
+  /**
+   * Try to request pointer lock, handle gracefully if not supported (e.g., in Reddit iframe)
+   */
+  /**
+   * Activate camera controls
+   */
+  activateCamera = (control: Control) => {
+    console.log("[UI] Activating camera");
+    control.cameraController.activate();
+    this.onPlay();
+  };
+
+  /**
+   * Deactivate camera controls
+   */
+  deactivateCamera = (control: Control) => {
+    console.log("[UI] Deactivating camera");
+    control.cameraController.deactivate();
+    this.onPause();
+  };
 
   bag: Bag;
   joystick: Joystick;

@@ -22,6 +22,37 @@ enum Side {
 import MultiplayerManager from "../state/multiplayer";
 import { ChatUI } from "../ui/chatUI";
 
+/**
+ * Simple camera controller without pointer lock
+ */
+class CameraController {
+  camera: THREE.PerspectiveCamera;
+  isActive = false;
+  euler = new THREE.Euler(0, 0, 0, "YXZ");
+
+  constructor(camera: THREE.PerspectiveCamera) {
+    this.camera = camera;
+  }
+
+  activate() {
+    this.isActive = true;
+  }
+
+  deactivate() {
+    this.isActive = false;
+  }
+
+  rotate(deltaX: number, deltaY: number) {
+    if (!this.isActive) return;
+
+    this.euler.setFromQuaternion(this.camera.quaternion);
+    this.euler.y -= deltaX * 0.002;
+    this.euler.x -= deltaY * 0.002;
+    this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
+    this.camera.quaternion.setFromEuler(this.euler);
+  }
+}
+
 export default class Control {
   constructor(
     scene: THREE.Scene,
@@ -36,16 +67,34 @@ export default class Control {
     this.camera = camera;
     this.player = player;
     this.terrain = terrain;
-    // PointerLockControls handles mouse-look camera rotation
-    this.control = new PointerLockControls(camera, document.body);
     this.audio = audio;
     this.multiplayer = multiplayer;
     this.chatUI = chatUI;
 
+    // PointerLockControls handles mouse-look camera rotation
+    // Suppress console errors in sandboxed environments
+    const originalError = console.error;
+    console.error = (...args: any[]) => {
+      // Filter out pointer lock errors
+      if (
+        args[0]?.includes?.("PointerLockControls") ||
+        args[0]?.includes?.("Pointer Lock")
+      ) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+    this.control = new PointerLockControls(camera, document.body);
+    console.error = originalError;
+
+    // Also create camera controller for sandboxed mode
+    this.cameraController = new CameraController(camera);
+
     this.far = this.player.body.height; // Used for downward collision detection
 
     this.initRayCaster();
-    this.initEventListeners();
+    this.initMouseControls();
+    this.initKeyboardControls();
   }
 
   // ===== CORE PROPERTIES =====
@@ -54,6 +103,7 @@ export default class Control {
   player: Player;
   terrain: Terrain;
   control: PointerLockControls;
+  cameraController: CameraController;
   audio: Audio;
   multiplayer: MultiplayerManager;
   chatUI: ChatUI;
@@ -122,6 +172,10 @@ export default class Control {
   jumpInterval?: ReturnType<typeof setInterval>; // For continuous jump in flying mode
   mouseHolding = false; // Tracks if mouse button is held
   spaceHolding = false; // Tracks if space is held
+
+  // Track if we're in sandboxed mode (no pointer lock available)
+  sandboxedMode = false;
+  gameActive = false;
 
   /**
    * Initialize all six directional raycasters for collision detection
@@ -574,14 +628,6 @@ export default class Control {
             );
 
             // Add instance to the appropriate block type mesh
-            console.log(
-              "Placing block - holdingBlock:",
-              this.holdingBlock,
-              "holdingIndex:",
-              this.holdingIndex,
-              "holdingBlocks[holdingIndex]:",
-              this.holdingBlocks[this.holdingIndex]
-            );
             this.terrain.blocks[this.holdingBlock]!.setMatrixAt(
               this.terrain.getCount(this.holdingBlock)!,
               matrix
@@ -664,14 +710,6 @@ export default class Control {
 
     this.holdingBlock =
       this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
-    console.log(
-      "Key pressed:",
-      e.key,
-      "holdingIndex:",
-      this.holdingIndex,
-      "holdingBlock:",
-      this.holdingBlock
-    );
   };
 
   /**
@@ -702,47 +740,60 @@ export default class Control {
 
       this.holdingBlock =
         this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
-      console.log(
-        "Wheel scrolled - holdingIndex:",
-        this.holdingIndex,
-        "holdingBlock:",
-        this.holdingBlock
-      );
     }
   };
 
   /**
-   * Set up event listeners that are only active when pointer is locked
+   * Initialize mouse controls for camera rotation
    */
-  initEventListeners = () => {
-    // Add/remove event listeners based on pointer lock state
-    document.addEventListener("pointerlockchange", () => {
-      if (document.pointerLockElement) {
-        // Pointer locked: game is active
-        document.body.addEventListener(
-          "keydown",
-          this.changeHoldingBlockHandler
-        );
-        document.body.addEventListener("wheel", this.wheelHandler);
-        document.body.addEventListener("keydown", this.setMovementHandler);
-        document.body.addEventListener("keyup", this.resetMovementHandler);
-        document.body.addEventListener("mousedown", this.mousedownHandler);
-        document.body.addEventListener("mouseup", this.mouseupHandler);
-      } else {
-        // Pointer unlocked: game is paused
-        document.body.removeEventListener(
-          "keydown",
-          this.changeHoldingBlockHandler
-        );
-        document.body.removeEventListener("wheel", this.wheelHandler);
-        document.body.removeEventListener("keydown", this.setMovementHandler);
-        document.body.removeEventListener("keyup", this.resetMovementHandler);
-        document.body.removeEventListener("mousedown", this.mousedownHandler);
-        document.body.removeEventListener("mouseup", this.mouseupHandler);
-        // Stop all movement
-        this.velocity = new THREE.Vector3(0, 0, 0);
+  initMouseControls = () => {
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let isFirstMove = true;
+
+    document.body.addEventListener("mousemove", (e: MouseEvent) => {
+      if (!this.cameraController.isActive) {
+        console.log("[MOUSE] Camera not active");
+        return;
       }
+
+      // Skip first move to avoid camera jump
+      if (isFirstMove) {
+        console.log("[MOUSE] First move, initializing position");
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        isFirstMove = false;
+        return;
+      }
+
+      const deltaX = e.clientX - lastMouseX;
+      const deltaY = e.clientY - lastMouseY;
+
+      console.log("[MOUSE] Delta:", deltaX, deltaY);
+
+      this.cameraController.rotate(deltaX, deltaY);
+
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
     });
+
+    console.log("[MOUSE] Mouse controls initialized");
+  };
+
+  /**
+   * Initialize keyboard controls
+   */
+  initKeyboardControls = () => {
+    console.log("[KEYBOARD] Initializing keyboard controls");
+
+    document.body.addEventListener("keydown", this.changeHoldingBlockHandler);
+    document.body.addEventListener("wheel", this.wheelHandler);
+    document.body.addEventListener("keydown", this.setMovementHandler);
+    document.body.addEventListener("keyup", this.resetMovementHandler);
+    document.body.addEventListener("mousedown", this.mousedownHandler);
+    document.body.addEventListener("mouseup", this.mouseupHandler);
+
+    console.log("[KEYBOARD] Keyboard controls initialized");
   };
 
   /**

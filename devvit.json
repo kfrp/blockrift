@@ -36,5 +36,8 @@
   },
   "triggers": {
     "onAppInstall": "/internal/on-app-install"
+  },
+  "dev": {
+    "subreddit": "blockrift_dev"
   }
 }

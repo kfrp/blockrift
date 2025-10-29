@@ -10,9 +10,9 @@ interface AssetConfig {
 
 export class AssetLoader {
   private readonly REQUIRED_ASSETS: AssetConfig[] = [
-    { url: "/assets/menu2.png", type: "image" },
-    { url: "/assets/title6.png", type: "image" },
-    { url: "/assets/ari-w9500.ttf", type: "font" },
+    { url: "/menu2.png", type: "image" },
+    { url: "/title6.png", type: "image" },
+    { url: "/ari-w9500.ttf", type: "font" },
   ];
 
   private readonly MAX_RETRIES = 3;
@@ -36,7 +36,9 @@ export class AssetLoader {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        await this.loadAsset(asset);
+        await this.loadAsset(
+          attempt === 1 ? { ...asset, url: "/assets" + asset.url } : asset
+        );
         return; // Success
       } catch (error) {
         lastError = error as Error;

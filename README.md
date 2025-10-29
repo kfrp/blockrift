@@ -4,9 +4,45 @@
 
 BlockRift is a browser-based Minecraft-inspired building game where you can create, destroy, and explore an infinite procedurally-generated world alongside other Reddit users in real-time. Play directly from Reddit posts with no downloads required - your Reddit username is your in-game identity.
 
-The game features smooth 60 FPS gameplay powered by Three.js, real-time multiplayer synchronization, persistent world state stored in Redis, and an intuitive building system with 12 different block types. Whether you're building solo or collaborating with friends, BlockRift brings the classic voxel sandbox experience directly to Reddit.
+The game features smooth 60 FPS gameplay powered by Three.js, real-time multiplayer synchronization via WebSocket, persistent world state stored in Redis, and an intuitive building system with 12 different block types. Whether you're building solo or collaborating with friends, BlockRift brings the classic voxel sandbox experience directly to Reddit.
 
-BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community.
+BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. The game works seamlessly in both standard browsers and Reddit's sandboxed iframe environment, automatically adapting controls for optimal gameplay (using middle mouse button for camera control when pointer lock is unavailable).
+
+---
+
+## 🎮 What is BlockRift?
+
+BlockRift brings the classic voxel sandbox experience directly to Reddit. Build structures, mine resources, and collaborate with friends in a persistent multiplayer world. The game features:
+
+- **Infinite procedurally-generated terrain** with realistic biomes, trees, and underground resources
+- **Real-time multiplayer** with position synchronization and collaborative building
+- **12 different block types** including grass, sand, tree logs, leaves, dirt, stone, coal, wood planks, diamond, quartz, glass, and bedrock
+- **Global friendship system** allowing trusted players to modify each other's creations across all worlds
+- **Builder recognition** with upvoting system to appreciate great builds
+- **Persistent world state** stored in Redis - your creations are saved automatically
+- **Real-time chat system** for communication with other players (press C to chat)
+- **Mobile-friendly controls** with touch joystick and optimized UI
+- **Smooth 60 FPS gameplay** powered by Three.js and Web Workers
+- **Smart spawn positioning** to avoid player overlap and existing structures
+- **Walking and flying modes** with realistic physics including gravity, jumping, and sneaking
+
+---
+
+## 🎮 What is BlockRift?
+
+BlockRift brings the classic voxel sandbox experience directly to Reddit. Build structures, mine resources, and collaborate with friends in a persistent multiplayer world. The game features:
+
+- **Infinite procedurally-generated terrain** with realistic biomes, trees, and underground resources
+- **Real-time multiplayer** with position synchronization and collaborative building
+- **12 different block types** including grass, sand, tree logs, leaves, dirt, stone, coal, wood planks, diamond, quartz, glass, and bedrock
+- **Global friendship system** allowing trusted players to modify each other's creations across all worlds
+- **Builder recognition** with upvoting system to appreciate great builds
+- **Persistent world state** stored in Redis - your creations are saved automatically
+- **Real-time chat system** for communication with other players (press C to chat)
+- **Mobile-friendly controls** with touch joystick and optimized UI
+- **Smooth 60 FPS gameplay** powered by Three.js and Web Workers
+- **Smart spawn positioning** to avoid player overlap and existing structures
+- **Walking and flying modes** with realistic physics including gravity, jumping, and sneaking
 
 ---
 
@@ -72,15 +108,19 @@ When you join a level, the server calculates a smart spawn position that avoids 
 
 ### 11. **Advanced Collision System**
 
-The game features a sophisticated collision detection system with 6-directional raycasting (front, back, left, right, up, down). When you collide with walls at an angle, the system allows you to slide along them smoothly rather than stopping completely. This creates natural movement that feels responsive and intuitive. The collision system also handles special cases like sneaking (prevents falling off edges) and jumping (temporary collision adjustments).
+The game features a sophisticated collision detection system with 6-directional raycasting (front, back, left, right, up, down). When you collide with walls at an angle, the system allows you to slide along them smoothly rather than stopping completely. This creates natural movement that feels responsive and intuitive. The collision system also handles special cases like sneaking (prevents falling off edges by adding invisible collision blocks at ledges) and jumping (temporary collision adjustments). The system uses a temporary instanced mesh for efficient collision checking, testing only nearby blocks rather than the entire world.
 
 ### 12. **Procedural Cloud Generation**
 
-The sky features dynamically generated clouds made from 50-75 small pieces clustered together. Each cloud cluster is positioned randomly across the sky at y=80, creating a realistic atmosphere. Clouds are regenerated periodically as you explore, maintaining visual variety without impacting performance.
+The sky features dynamically generated clouds made from 50-75 small pieces clustered together. Each cloud cluster is positioned randomly across the sky at y=80, creating a realistic atmosphere. Clouds are regenerated every 6 terrain generation cycles as you explore, maintaining visual variety without impacting performance. The cloud system uses instanced rendering with up to 10,000 cloud pieces for efficient rendering.
 
 ### 13. **Efficient Instance-Based Rendering**
 
 Instead of creating individual meshes for each block (which would be thousands of draw calls), BlockRift uses Three.js InstancedMesh to render all blocks of the same type in a single draw call. Each block type has its own InstancedMesh with pre-allocated capacity based on expected frequency (grass is common, diamonds are rare). This optimization enables smooth 60 FPS gameplay even with thousands of visible blocks.
+
+### 14. **Sandboxed Environment Support**
+
+BlockRift automatically detects when running in Reddit's sandboxed iframe environment (where pointer lock is unavailable) and seamlessly switches to alternative controls. In sandboxed mode, players simply move their mouse to look around instead of using pointer lock, ensuring the game works perfectly within Reddit posts without requiring special permissions or browser features.
 
 ---
 
@@ -92,15 +132,22 @@ Instead of creating individual meshes for each block (which would be thousands o
 
    - Find a BlockRift post on Reddit
    - Click the "Play" button on the splash screen
-   - A loading screen appears with animated blocks while assets load
-   - The game connects to the server and fetches terrain seeds, initial chunks, and player data
+   - A loading screen appears with animated bouncing blocks while assets load (images, fonts, and game data)
+   - The game connects to the server and fetches:
+     - Terrain seeds (ensures everyone sees the same world)
+     - Initial chunks around your spawn position
+     - Player data (score, friends, position)
+     - Other active players in the level
    - You'll spawn in a procedurally-generated world with other players
    - Your Reddit username appears in the top-right corner
    - Other players appear as colored block characters with nametags above their heads
    - If connection fails, an error modal appears with a "Retry" button
    - If authentication fails, an error modal appears explaining the issue
+   - The game automatically detects if you're in Reddit's sandboxed environment and adjusts controls accordingly
 
 2. **Basic Controls (Desktop)**
+
+   **Standard Mode (Pointer Lock):**
 
    - **WASD** - Move forward/backward/left/right
    - **Mouse** - Look around (first-person camera)
@@ -114,6 +161,20 @@ Instead of creating individual meshes for each block (which would be thousands o
    - **E** - Open menu (pause game)
    - **F** - Toggle fullscreen
    - **Escape** - Close chat input or unlock pointer
+
+   **Reddit Mode (Sandboxed Environment):**
+
+   - **WASD** - Move forward/backward/left/right
+   - **Mouse Movement** - Look around (camera control - just move your mouse)
+   - **Space** - Jump (in walking mode) or fly up (in flying mode)
+   - **Left Click** - Destroy block (hold for continuous breaking)
+   - **Right Click** - Place block (hold for continuous placing)
+   - **Mouse Wheel / Number Keys (1-8)** - Select block type from hotbar
+   - **Q** - Toggle between walking mode and flying mode
+   - **Shift** - Sneak (walking mode) or fly down (flying mode)
+   - **C** - Open chat input
+   - **E** - Open menu
+   - **F** - Toggle fullscreen
 
 3. **Basic Controls (Mobile)**
    - **Left Joystick** - Move in any direction
@@ -277,6 +338,7 @@ Access settings by pressing **E** (opens menu) and clicking "Settings":
 
 - **Start small**: Build a simple structure to get familiar with controls before attempting large projects
 - **Use flying mode**: Press Q to toggle flying - it's much easier for building tall structures or exploring
+- **Reddit Mode**: If playing in a Reddit post, just move your mouse to look around (pointer lock isn't available in iframes)
 - **Make friends**: Add other builders as friends to collaborate on projects and modify each other's builds
 - **Explore**: The world is infinite - walk in any direction to discover new terrain, trees, and underground resources
 - **Check the builders list**: Click to expand and see who's online and what they're building in your region
@@ -289,6 +351,7 @@ Access settings by pressing **E** (opens menu) and clicking "Settings":
 - **Upvote good builds**: Show appreciation by upvoting builders whose creations you admire
 - **Watch your permissions**: You can only break blocks you placed or blocks from players who added you as a friend
 - **Spawn position persists**: When you disconnect and rejoin, you'll spawn at your last known position
+- **Smooth wall sliding**: When you hit walls at an angle, the collision system lets you slide along them naturally
 
 ### Viewer Mode
 
@@ -356,8 +419,11 @@ BlockRift uses a sophisticated client-server architecture optimized for Reddit's
 - **Player Count**: In-memory tracking with real-time broadcasts via game-level channel
 - **Chat**: Fire-and-forget HTTP POST with broadcast to game-level channel
 - **Block Types**: 12 total block types (grass, sand, tree, leaf, dirt, stone, coal, wood, diamond, quartz, glass, bedrock)
-- **Physics**: Realistic gravity, collision detection, jumping, and sneaking in walking mode
+- **Physics**: Realistic gravity, 6-directional collision detection with wall sliding, jumping, and sneaking in walking mode
 - **Rendering**: InstancedMesh for efficient rendering of thousands of blocks, fog for atmosphere, directional lighting
+- **Controls**: Automatic detection of sandboxed environments with fallback to alternative controls (middle mouse button for camera)
+- **Asset Loading**: Preloading system with retry logic for images and fonts, ensuring reliable startup
+- **Error Handling**: Graceful error modals for connection and authentication failures with retry functionality
 
 For detailed technical documentation, see the architecture guides in `.kiro/steering/`.
 

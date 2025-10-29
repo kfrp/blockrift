@@ -109,10 +109,6 @@ export default class MultiplayerManager {
     level: string = "default",
     connectionData?: any
   ): Promise<void> {
-    console.log(
-      `[DEBUG] MultiplayerManager.connect called for level: ${level}`
-    );
-    console.trace(); // Show stack trace
     try {
       let data = connectionData;
 
