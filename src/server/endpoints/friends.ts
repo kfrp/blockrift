@@ -29,11 +29,8 @@ export async function handleAddFriend(
   friendUsername: string,
   connectedClients?: Map<string, ConnectedClient>
 ): Promise<AddFriendResponse> {
-  console.log(`${username} attempting to add friend ${friendUsername}`);
-
   // Validate: can't add self
   if (username === friendUsername) {
-    console.log(`${username} attempted to add self as friend`);
     return {
       ok: false,
       message: "Cannot add yourself as friend",
@@ -54,8 +51,6 @@ export async function handleAddFriend(
 
     // Get updated friends list from global hash
     const friends = await getPlayerFriends(username);
-
-    console.log(`${username} successfully added ${friendUsername} as friend`);
 
     return {
       ok: true,
@@ -85,8 +80,6 @@ export async function handleRemoveFriend(
   friendUsername: string,
   connectedClients?: Map<string, ConnectedClient>
 ): Promise<RemoveFriendResponse> {
-  console.log(`${username} attempting to remove friend ${friendUsername}`);
-
   try {
     // Remove friend using global hash updates
     await removeGlobalFriend(username, friendUsername);
@@ -101,10 +94,6 @@ export async function handleRemoveFriend(
 
     // Get updated friends list from global hash
     const friends = await getPlayerFriends(username);
-
-    console.log(
-      `${username} successfully removed ${friendUsername} from friends`
-    );
 
     return {
       ok: true,

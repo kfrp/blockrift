@@ -59,15 +59,9 @@ import { connectRealtime } from "./realtime";
 
 const connection = await connectRealtime({
   channel: "my-channel",
-  onConnect: (channel) => {
-    console.log(`Connected to ${channel}`);
-  },
-  onDisconnect: (channel) => {
-    console.log(`Disconnected from ${channel}`);
-  },
-  onMessage: (data) => {
-    console.log("Received message:", data);
-  },
+  onConnect: (channel) => {},
+  onDisconnect: (channel) => {},
+  onMessage: (data) => {},
 });
 
 // Later, disconnect

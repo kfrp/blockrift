@@ -188,7 +188,6 @@ export class LoadingManager {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -196,7 +195,7 @@ export class LoadingManager {
       }
 
       const data: ConnectionData = await response.json();
-
+      console.log(data);
       // Check for username in response
       if (!data.username) {
         this.setState(LoadingState.ERROR_AUTH);
@@ -251,7 +250,6 @@ export class LoadingManager {
    * Called when user clicks retry button in connection error modal
    */
   private retryConnection(): void {
-    console.log("Retrying connection...");
     this.setState(LoadingState.CONNECTING);
     this.connectToServer().catch((error) => {
       console.error("Retry failed:", error);
@@ -264,7 +262,6 @@ export class LoadingManager {
    * Called when user clicks close button in auth error modal
    */
   private closeAuthError(): void {
-    console.log("Closing auth error modal");
     this.authErrorModal.classList.add("hidden");
   }
 }

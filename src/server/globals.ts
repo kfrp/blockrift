@@ -28,7 +28,6 @@ export let realtime: RealtimeInterface;
  */
 export function setRedis(client: RedisClient): void {
   redis = client;
-  console.log("Global redis client set");
 }
 
 /**
@@ -38,5 +37,4 @@ export function setRedis(client: RedisClient): void {
  */
 export function setRealtime(rt: RealtimeInterface): void {
   realtime = rt;
-  console.log("Global realtime interface set");
 }

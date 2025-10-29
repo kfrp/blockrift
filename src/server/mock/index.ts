@@ -91,7 +91,7 @@ const lastBroadcastState = new Map<string, string>(); // channel -> JSON string 
  */
 function generateUsername(): string {
   const randomNum = Math.floor(Math.random() * 10000);
-  console.log("generated: " + randomNum);
+
   return `Player${randomNum}`;
 }
 
@@ -117,16 +117,12 @@ const realtime: RealtimeInterface = {
   async send(channel: string, data: any): Promise<void> {
     const subscribers = channelSubscribers.get(channel);
     if (!subscribers || subscribers.size === 0) {
-      console.log(`No subscribers for channel ${channel}`);
       return;
     }
 
     // Add channel to message so client can route it correctly
     const messageWithChannel = { ...data, channel };
     const message = JSON.stringify(messageWithChannel);
-    console.log(
-      `[DEBUG] realtime.send: Broadcasting to ${channel}: ${subscribers.size} subscribers, message type: ${data.type}`
-    );
 
     for (const ws of subscribers) {
       if (ws.readyState === WebSocket.OPEN) {
@@ -141,8 +137,6 @@ const realtime: RealtimeInterface = {
 // ============================================================================
 
 wss.on("connection", (ws: WebSocket) => {
-  console.log("WebSocket client connected");
-
   ws.on("message", (message: string) => {
     try {
       const data = JSON.parse(message.toString());
@@ -153,11 +147,6 @@ wss.on("connection", (ws: WebSocket) => {
           channelSubscribers.set(channel, new Set());
         }
         channelSubscribers.get(channel)!.add(ws);
-        console.log(
-          `[DEBUG] Client subscribed to channel: ${channel}, total subscribers: ${
-            channelSubscribers.get(channel)!.size
-          }`
-        );
       } else if (data.type === "unsubscribe") {
         const channel = data.channel;
         const subscribers = channelSubscribers.get(channel);
@@ -167,7 +156,6 @@ wss.on("connection", (ws: WebSocket) => {
             channelSubscribers.delete(channel);
           }
         }
-        console.log(`Client unsubscribed from channel: ${channel}`);
       }
     } catch (error) {
       console.error("Error processing WebSocket message:", error);
@@ -182,7 +170,6 @@ wss.on("connection", (ws: WebSocket) => {
         channelSubscribers.delete(channel);
       }
     }
-    console.log("WebSocket client disconnected");
   });
 });
 
@@ -190,70 +177,8 @@ wss.on("connection", (ws: WebSocket) => {
 // POSITION BROADCASTING
 // ============================================================================
 
-/**
- * Broadcast position updates for all players
- * Called periodically (1 second intervals)
- * Only broadcasts if data has changed since last broadcast
- */
-async function broadcastPositionUpdates(): Promise<void> {
-  // Skip if no connected clients
-  if (connectedClients.size === 0) {
-    return;
-  }
-
-  // Group players by level
-  const playersByLevel = new Map<string, ConnectedClient[]>();
-
-  for (const client of connectedClients.values()) {
-    if (!playersByLevel.has(client.level)) {
-      playersByLevel.set(client.level, []);
-    }
-    playersByLevel.get(client.level)!.push(client);
-  }
-
-  // Broadcast to each level's regional channels
-  for (const [level, players] of playersByLevel.entries()) {
-    // Group players by region
-    const playersByRegion = new Map<string, ConnectedClient[]>();
-
-    for (const player of players) {
-      if (!player.position) continue;
-
-      const channel = getRegionalChannelFromPosition(level, player.position);
-      if (!playersByRegion.has(channel)) {
-        playersByRegion.set(channel, []);
-      }
-      playersByRegion.get(channel)!.push(player);
-    }
-
-    // Broadcast to each region
-    for (const [channel, regionPlayers] of playersByRegion.entries()) {
-      const playerData = regionPlayers.map((p) => ({
-        username: p.username,
-        position: p.position || { x: 0, y: 20, z: 0 },
-        rotation: p.rotation || { x: 0, y: 0 },
-      }));
-
-      // Serialize to JSON for comparison
-      const currentState = JSON.stringify(playerData);
-      const lastState = lastBroadcastState.get(channel);
-
-      // Only broadcast if data changed
-      if (currentState !== lastState) {
-        await realtime.send(channel, {
-          type: "player-positions",
-          players: playerData,
-        });
-
-        // Update last broadcast state
-        lastBroadcastState.set(channel, currentState);
-      }
-    }
-  }
-}
-
-// Start position broadcasting interval
-setInterval(broadcastPositionUpdates, 1000);
+// Position updates are now handled by /api/position endpoint
+// No periodic broadcasting needed - updates sent on chunk boundary crossings
 
 // ============================================================================
 // MODIFICATION VALIDATION
@@ -326,8 +251,6 @@ async function persistModificationBatch(
       await redisStore.hSet(chunkKey, { [blockKey]: blockData });
     }
   }
-
-  console.log(`Persisted ${modifications.length} modifications to Redis`);
 }
 
 // ============================================================================
@@ -374,7 +297,7 @@ app.post(CONNECT_API, async (req, res) => {
     req.query.username && req.query.username !== "undefined"
       ? String(req.query.username)
       : assignUsername();
-  console.log({ username });
+
   try {
     const response = await handleConnect(
       username,
@@ -394,8 +317,6 @@ app.post(CONNECT_API, async (req, res) => {
 app.post(DISCONNECT_API, async (req, res) => {
   const { username, level } = req.body as DisconnectRequest;
 
-  console.log(`HTTP disconnect request from ${username} for level "${level}"`);
-
   // Retrieve player's current position from connectedClients map
   const client = connectedClients.get(username);
   if (client && client.position) {
@@ -405,8 +326,6 @@ app.post(DISCONNECT_API, async (req, res) => {
     // Store in lastKnownPosition field of player hash
     const playerKey = `player:${username}:${level}`;
     await redisStore.hSet(playerKey, { lastKnownPosition: positionJson });
-
-    console.log(`Saved last known position for ${username}: ${positionJson}`);
   }
 
   // Remove from active players set
@@ -425,8 +344,6 @@ app.post(DISCONNECT_API, async (req, res) => {
     await redisStore.hSet(playerKey, { lastActive: Date.now().toString() });
   }
 
-  console.log(`Removed ${username} from connected clients and active players`);
-
   res.json({ ok: true });
 });
 
@@ -434,11 +351,12 @@ app.post(DISCONNECT_API, async (req, res) => {
  * Position update endpoint
  */
 app.post(POSITION_API, async (req, res) => {
-  const { username, position, rotation } = req.body;
+  const { username, level, position, rotation } = req.body;
 
   try {
     const response = await handlePositionUpdate(
       username,
+      level || "default",
       position,
       rotation,
       connectedClients
@@ -455,10 +373,6 @@ app.post(POSITION_API, async (req, res) => {
  */
 app.post(MODIFICATIONS_API, async (req, res) => {
   const batch: ModificationBatchRequest = req.body;
-
-  console.log(
-    `Received batch of ${batch.modifications.length} modifications from ${batch.username}`
-  );
 
   const validatedMods: Array<{
     position: Position;
@@ -480,7 +394,7 @@ app.post(MODIFICATIONS_API, async (req, res) => {
 
     if (!validation.valid) {
       failedAt = i;
-      console.log(`Validation failed at index ${i}`);
+
       break;
     }
 
@@ -505,10 +419,6 @@ app.post(MODIFICATIONS_API, async (req, res) => {
       type: "block-modify",
       ...validatedMod,
     });
-
-    console.log(
-      `Broadcast ${mod.action} to regional channel ${regionalChannel}`
-    );
   }
 
   // Persist validated modifications to Redis (batched)
@@ -604,8 +514,6 @@ app.post(UPVOTE_API, async (req, res) => {
 app.post(CHAT_API, async (req, res) => {
   const { username, level, message } = req.body as ChatRequest;
 
-  console.log(`Chat message from ${username} in level ${level}: ${message}`);
-
   // Broadcast to game-level channel
   await realtime.send(`game:${level}`, {
     type: "chat-message",
@@ -639,16 +547,12 @@ async function initializeRedis() {
   await subscriber.connect();
   await redisStore.connect();
 
-  console.log("Redis clients connected");
-
   // Wrap node-redis client to match Devvit's API behavior
   const wrappedRedis = wrapNodeRedis(redisStore as any);
 
   // Cast to Devvit RedisClient type
   setRedis(wrappedRedis as any as RedisClient);
   setRealtime(realtime);
-
-  console.log("Global redis and realtime instances set");
 }
 
 // ============================================================================
@@ -659,10 +563,7 @@ export async function startServer() {
   try {
     await initializeRedis();
 
-    httpServer.listen(PORT, () => {
-      console.log(`Mock server listening on port ${PORT}`);
-      console.log(`WebSocket server ready`);
-    });
+    httpServer.listen(PORT, () => {});
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

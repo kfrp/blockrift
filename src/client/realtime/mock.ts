@@ -43,7 +43,6 @@ async function getSharedWebSocket(): Promise<WebSocket> {
     const ws = new WebSocket("ws://localhost:3000");
 
     ws.onopen = () => {
-      console.log("Shared WebSocket connected");
       sharedWs = ws;
       wsConnecting = null;
       resolve(ws);
@@ -52,7 +51,7 @@ async function getSharedWebSocket(): Promise<WebSocket> {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-
+        console.log(msg);
         // Determine which channel this message is for
         let targetChannel: string | null = null;
 
@@ -93,7 +92,6 @@ async function getSharedWebSocket(): Promise<WebSocket> {
     };
 
     ws.onclose = () => {
-      console.log("WebSocket closed");
       sharedWs = null;
       wsConnecting = null;
 
@@ -121,11 +119,6 @@ export async function connectRealtime(
   }
   if (onMessage) {
     channelHandlers.get(channel)!.add(onMessage);
-    console.log(
-      `[DEBUG] Registered handler for channel ${channel}, total handlers: ${
-        channelHandlers.get(channel)!.size
-      }`
-    );
   }
 
   if (!channelConnectCallbacks.has(channel)) {

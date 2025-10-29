@@ -340,9 +340,6 @@ export class ChunkStateManager {
     playerChunkZ: number,
     onMessage?: (data: any) => void
   ): Promise<void> {
-    console.log(
-      `[DEBUG] ChunkStateManager.updateSubscriptions called for chunk (${playerChunkX}, ${playerChunkZ})`
-    );
     const requiredRegions = this.getRequiredRegions(playerChunkX, playerChunkZ);
     const requiredKeys = new Set(
       requiredRegions.map(({ regionX, regionZ }) =>

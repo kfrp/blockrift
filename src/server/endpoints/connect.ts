@@ -8,7 +8,10 @@ import type {
   InitialConnectionResponse,
   ConnectedClient,
   Block,
+  Position,
+  Player,
 } from "../types";
+import { CHUNK_SIZE, REGION_SIZE, POSITION_STALE_THRESHOLD } from "../types";
 import {
   getOrCreatePlayerData,
   getPlayerFriends,
@@ -21,6 +24,62 @@ import {
   getPlayerCount,
 } from "./helpers";
 import { calculateInitialChunks } from "../server-utils";
+
+/**
+ * Get players near a position from Redis
+ */
+async function getPlayersNearPosition(
+  level: string,
+  position: Position
+): Promise<Player[]> {
+  const chunkX = Math.floor(position.x / CHUNK_SIZE);
+  const chunkZ = Math.floor(position.z / CHUNK_SIZE);
+  const regionX = Math.floor(chunkX / REGION_SIZE);
+  const regionZ = Math.floor(chunkZ / REGION_SIZE);
+
+  // Fetch from current region and adjacent regions (3x3 grid)
+  const regions = [];
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      regions.push({
+        regionX: regionX + dx,
+        regionZ: regionZ + dz,
+      });
+    }
+  }
+
+  const playerMap = new Map<string, Player>(); // Deduplicate by username
+  const now = Date.now();
+
+  for (const region of regions) {
+    const hashKey = `players:${level}:${region.regionX}:${region.regionZ}`;
+    const playerData = await redis.hGetAll(hashKey);
+
+    if (playerData && Object.keys(playerData).length > 0) {
+      for (const [username, dataStr] of Object.entries(playerData)) {
+        // Skip if already added (deduplication)
+        if (playerMap.has(username)) continue;
+
+        try {
+          const data = JSON.parse(dataStr);
+
+          // Filter by timestamp (only recent positions)
+          if (now - data.timestamp < POSITION_STALE_THRESHOLD) {
+            playerMap.set(username, {
+              username,
+              position: { x: data.x, y: data.y, z: data.z },
+              rotation: { x: data.rx, y: data.ry },
+            });
+          }
+        } catch (e) {
+          console.error(`Failed to parse player data for ${username}:`, e);
+        }
+      }
+    }
+  }
+
+  return Array.from(playerMap.values());
+}
 
 const defaultSpawn = () => ({ x: 0, y: 20, z: 0 });
 /**
@@ -35,8 +94,6 @@ export async function handleConnect(
   level: string,
   connectedClients: Map<string, ConnectedClient>
 ): Promise<InitialConnectionResponse> {
-  console.log(`HTTP connect request from ${username} for level "${level}"`);
-
   // Check if player is already connected to this level
   // Use connectedClients (in-memory) as source of truth, not Redis
   const existingClient = connectedClients.get(username);
@@ -44,17 +101,8 @@ export async function handleConnect(
     existingClient !== undefined && existingClient.level === level;
 
   if (isActive) {
-    console.log(
-      `${username} is already connected to level ${level} - entering Viewer Mode`
-    );
   } else if (existingClient) {
-    console.log(
-      `${username} is connected to a different level (${existingClient.level}) - allowing Player Mode for ${level}`
-    );
   } else {
-    console.log(
-      `${username} is not currently connected - entering Player Mode`
-    );
   }
 
   // Initialize and get terrain seeds
@@ -64,25 +112,21 @@ export async function handleConnect(
   // For initial chunk calculation, we need to determine spawn position early
   // Load player data to check for lastKnownPosition
   let playerData = null;
-  console.log("playerdata");
+
   if (!isActive) {
     playerData = await getOrCreatePlayerData(username, level);
   }
-  console.log("pd");
+
   // Calculate spawn position for chunk loading
   const spawnPosition = await calculateSpawnPosition(
     level,
     connectedClients,
     playerData?.lastKnownPosition
   );
-  console.log("xy");
+
   // Calculate initial chunks based on spawn position
   const drawDistance = 3;
   const chunksToLoad = calculateInitialChunks(spawnPosition, drawDistance);
-
-  console.log(
-    `Calculating initial chunks for ${username}: ${chunksToLoad.length} chunks around (${spawnPosition.x}, ${spawnPosition.y}, ${spawnPosition.z})`
-  );
 
   // Fetch chunks from Redis sequentially (Reddit Redis doesn't support pipelining)
   const initialChunks: InitialConnectionResponse["initialChunks"] = [];
@@ -114,24 +158,17 @@ export async function handleConnect(
     initialChunks.push({ chunkX, chunkZ, blocks });
   }
 
+  // Get existing players from Redis (filtered by region and timestamp)
+  const players: InitialConnectionResponse["players"] =
+    await getPlayersNearPosition(level, spawnPosition);
   console.log(
-    `Sending ${initialChunks.length} initial chunks with ${totalBlocks} total blocks to ${username}`
+    `[Connect] Found ${players.length} players near spawn for ${username}:`,
+    players.map((p) => p.username)
   );
-
-  // Get existing players from connectedClients (filtered by level)
-  const players: InitialConnectionResponse["players"] = Array.from(
-    connectedClients.values()
-  )
-    .filter((c) => c.level === level) // Only include players in the same level
-    .map((c) => ({
-      username: c.username,
-      position: c.position || defaultSpawn(),
-      rotation: c.rotation || { x: 0, y: 0 },
-    }));
   /** 
   if (isActive) {
     // Player already active - enter Viewer Mode
-    console.log(`${username} already active, entering Viewer Mode`);
+    
 
     // Do NOT add to connectedClients map (viewers are invisible)
     const response: InitialConnectionResponse = {
@@ -152,7 +189,6 @@ export async function handleConnect(
   }
 **/
   // Player not active - enter Player Mode
-  console.log(`${username} entering Player Mode`);
 
   // Add to active players set
   await addActivePlayer(username, level);
@@ -187,9 +223,32 @@ export async function handleConnect(
   };
   connectedClients.set(username, client);
 
+  // Write initial position to Redis so other players can see this player
+  const chunkX = Math.floor(spawnPosition.x / CHUNK_SIZE);
+  const chunkZ = Math.floor(spawnPosition.z / CHUNK_SIZE);
+  const regionX = Math.floor(chunkX / REGION_SIZE);
+  const regionZ = Math.floor(chunkZ / REGION_SIZE);
+  const timestamp = Date.now();
+
+  const hashKey = `players:${level}:${regionX}:${regionZ}`;
+  const positionData = JSON.stringify({
+    x: spawnPosition.x,
+    y: spawnPosition.y,
+    z: spawnPosition.z,
+    rx: 0,
+    ry: 0,
+    chunkX,
+    chunkZ,
+    timestamp,
+  });
+  console.log(
+    `[Connect] Writing initial position for ${username} to ${hashKey}:`,
+    spawnPosition
+  );
+  await redis.hSet(hashKey, { [username]: positionData });
+
   // Increment player count and broadcast
   await incrementPlayerCount(level);
-  console.log({ username });
 
   const response: InitialConnectionResponse = {
     mode: "player",

@@ -117,9 +117,6 @@ export class BuilderRecognitionManager {
     }
 
     this.highlightedBuilder = username;
-    console.log(
-      `BuilderRecognitionManager: Highlighted ${blocksToHighlight.length} blocks by ${username}`
-    );
   }
 
   /**
@@ -139,7 +136,6 @@ export class BuilderRecognitionManager {
     this.highlightMeshes = [];
 
     this.highlightedBuilder = null;
-    console.log("BuilderRecognitionManager: Cleared builder highlights");
   }
 
   /**

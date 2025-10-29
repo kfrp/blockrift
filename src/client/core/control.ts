@@ -43,7 +43,9 @@ class CameraController {
   }
 
   rotate(deltaX: number, deltaY: number) {
-    if (!this.isActive) return;
+    if (!this.isActive) {
+      return;
+    }
 
     this.euler.setFromQuaternion(this.camera.quaternion);
     this.euler.y -= deltaX * 0.002;
@@ -416,6 +418,11 @@ export default class Control {
    * It uses the block already identified by the Highlight system.
    */
   mousedownHandler = (e: MouseEvent) => {
+    // Don't process if camera is being dragged
+    if (this.isDraggingCamera) {
+      return;
+    }
+
     // Don't process mouse clicks when chat is active
     if (this.chatUI.isInputActive()) {
       return;
@@ -743,57 +750,71 @@ export default class Control {
     }
   };
 
+  // Camera drag state (needs to be accessible by mousedownHandler)
+  isDraggingCamera = false;
+  lastCameraMouseX = 0;
+  lastCameraMouseY = 0;
+
   /**
    * Initialize mouse controls for camera rotation
    */
   initMouseControls = () => {
-    let lastMouseX = 0;
-    let lastMouseY = 0;
-    let isFirstMove = true;
+    // Start dragging on right mouse button - use capture phase to run before other handlers
+    document.body.addEventListener(
+      "mousedown",
+      (e: MouseEvent) => {
+        // Left click WITHOUT shift = camera drag
+        // Left click WITH shift = break block (handled by mousedownHandler)
+        if (e.button === 0 && !e.shiftKey && this.cameraController.isActive) {
+          // Left click without shift
+          this.isDraggingCamera = true;
+          this.lastCameraMouseX = e.clientX;
+          this.lastCameraMouseY = e.clientY;
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true
+    ); // Use capture phase
 
+    // Rotate camera while dragging
     document.body.addEventListener("mousemove", (e: MouseEvent) => {
-      if (!this.cameraController.isActive) {
-        console.log("[MOUSE] Camera not active");
-        return;
-      }
+      if (!this.isDraggingCamera || !this.cameraController.isActive) return;
 
-      // Skip first move to avoid camera jump
-      if (isFirstMove) {
-        console.log("[MOUSE] First move, initializing position");
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        isFirstMove = false;
-        return;
-      }
-
-      const deltaX = e.clientX - lastMouseX;
-      const deltaY = e.clientY - lastMouseY;
-
-      console.log("[MOUSE] Delta:", deltaX, deltaY);
+      const deltaX = e.clientX - this.lastCameraMouseX;
+      const deltaY = e.clientY - this.lastCameraMouseY;
 
       this.cameraController.rotate(deltaX, deltaY);
 
-      lastMouseX = e.clientX;
-      lastMouseY = e.clientY;
+      this.lastCameraMouseX = e.clientX;
+      this.lastCameraMouseY = e.clientY;
     });
 
-    console.log("[MOUSE] Mouse controls initialized");
+    // Stop dragging
+    document.body.addEventListener("mouseup", (e: MouseEvent) => {
+      if (e.button === 0 && this.isDraggingCamera) {
+        this.isDraggingCamera = false;
+      }
+    });
+
+    // Also stop dragging if mouse leaves window
+    document.body.addEventListener("mouseleave", () => {
+      if (this.isDraggingCamera) {
+        this.isDraggingCamera = false;
+      }
+    });
   };
 
   /**
    * Initialize keyboard controls
    */
   initKeyboardControls = () => {
-    console.log("[KEYBOARD] Initializing keyboard controls");
-
     document.body.addEventListener("keydown", this.changeHoldingBlockHandler);
     document.body.addEventListener("wheel", this.wheelHandler);
     document.body.addEventListener("keydown", this.setMovementHandler);
     document.body.addEventListener("keyup", this.resetMovementHandler);
     document.body.addEventListener("mousedown", this.mousedownHandler);
     document.body.addEventListener("mouseup", this.mouseupHandler);
-
-    console.log("[KEYBOARD] Keyboard controls initialized");
   };
 
   /**

@@ -25,7 +25,6 @@ export default class UI {
 
     // play
     this.play?.addEventListener("click", () => {
-      console.log("[UI] Play button clicked");
       if (this.play?.innerHTML === "Play") {
         this.onPlay();
       }
@@ -34,9 +33,6 @@ export default class UI {
 
     // save load - disabled in multiplayer mode
     this.save?.addEventListener("click", () => {
-      console.log(
-        "Save/Load disabled in multiplayer mode - world state is managed by server"
-      );
       // In multiplayer mode, the server manages world state
       // Local save/load is not supported
       !isMobile && this.activateCamera(control);
@@ -148,16 +144,32 @@ export default class UI {
    * Activate camera controls
    */
   activateCamera = (control: Control) => {
-    console.log("[UI] Activating camera");
     control.cameraController.activate();
     this.onPlay();
+
+    // Show helpful notification about controls
+    this.showControlsNotification();
+  };
+
+  /**
+   * Show controls notification
+   */
+  showControlsNotification = () => {
+    const notification = document.createElement("div");
+    notification.className = "temp-message temp-message-success";
+    notification.innerHTML =
+      "Drag to look around | WASD to move | Shift+Click to break | Right-click to place";
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.remove();
+    }, 5000);
   };
 
   /**
    * Deactivate camera controls
    */
   deactivateCamera = (control: Control) => {
-    console.log("[UI] Deactivating camera");
     control.cameraController.deactivate();
     this.onPause();
   };

@@ -78,8 +78,6 @@ const connectedClients = new Map<string, ConnectedClient>();
 setRedis(redis);
 setRealtime(realtime);
 
-console.log("Reddit server: Global redis and realtime instances set");
-
 // Create Express app
 const app = express();
 
@@ -117,7 +115,6 @@ async function getLevelFromContext(
   postId: string | undefined
 ): Promise<string> {
   if (!postId) {
-    console.log("No postId in context, using default level");
     return "default";
   }
 
@@ -125,23 +122,17 @@ async function getLevelFromContext(
   const seedsExist = await redis.exists(`terrain:seeds:${postId}`);
 
   if (seedsExist) {
-    console.log(`Using level from postId: ${postId}`);
     return postId;
   }
 
   // Seeds don't exist for postId, check if default seeds exist
-  console.log(
-    `No terrain seeds for postId ${postId}, checking for default seeds`
-  );
   const defaultSeedsExist = await redis.exists("terrain:seeds:default");
-
   if (defaultSeedsExist) {
-    console.log("Using default level (seeds exist)");
     return "default";
   }
 
   // Initialize default seeds
-  console.log("Initializing default terrain seeds");
+
   await initializeTerrainSeeds("default");
   return "default";
 }
@@ -219,8 +210,6 @@ async function persistModificationBatch(
       await redis.hSet(chunkKey, { [blockKey]: blockData });
     }
   }
-
-  console.log(`Persisted ${modifications.length} modifications to Redis`);
 }
 
 // ============================================================================
@@ -239,10 +228,6 @@ app.post(CONNECT_API, async (_req, res) => {
     }
 
     const level = await getLevelFromContext(context.postId);
-
-    console.log(
-      `Reddit server: Connect request from ${username} for level ${level}`
-    );
 
     const response = await handleConnect(username, level, connectedClients);
     res.json(response);
@@ -265,10 +250,6 @@ app.post(DISCONNECT_API, async (_req, res) => {
 
     const level = await getLevelFromContext(context.postId);
 
-    console.log(
-      `Reddit server: Disconnect request from ${username} for level ${level}`
-    );
-
     // Retrieve player's current position from connectedClients map
     const client = connectedClients.get(username);
     if (client && client.position) {
@@ -278,8 +259,6 @@ app.post(DISCONNECT_API, async (_req, res) => {
       // Store in lastKnownPosition field of player hash
       const playerKey = `player:${username}:${level}`;
       await redis.hSet(playerKey, { lastKnownPosition: positionJson });
-
-      console.log(`Saved last known position for ${username}: ${positionJson}`);
     }
 
     // Remove from active players set
@@ -297,10 +276,6 @@ app.post(DISCONNECT_API, async (_req, res) => {
     if (exists) {
       await redis.hSet(playerKey, { lastActive: Date.now().toString() });
     }
-
-    console.log(
-      `Removed ${username} from connected clients and active players`
-    );
 
     res.json({ ok: true });
   } catch (error) {
@@ -320,10 +295,13 @@ app.post(POSITION_API, async (_req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { position, rotation } = _req.body as PositionUpdateRequest;
+    const { level, position, rotation } = _req.body as PositionUpdateRequest & {
+      level: string;
+    };
 
     const response = await handlePositionUpdate(
       username,
+      level || "default",
       position,
       rotation,
       connectedClients
@@ -353,10 +331,6 @@ app.post(MODIFICATIONS_API, async (_req, res) => {
       level,
     };
 
-    console.log(
-      `Received batch of ${batch.modifications.length} modifications from ${username}`
-    );
-
     const validatedMods: Array<{
       position: Position;
       blockType: number | null;
@@ -376,7 +350,7 @@ app.post(MODIFICATIONS_API, async (_req, res) => {
 
       if (!validation.valid) {
         failedAt = i;
-        console.log(`Validation failed at index ${i}: ${validation.reason}`);
+
         break;
       }
 
@@ -403,10 +377,6 @@ app.post(MODIFICATIONS_API, async (_req, res) => {
           type: "block-modify",
           ...validatedMod,
         })
-      );
-
-      console.log(
-        `Broadcast ${mod.action} to regional channel ${regionalChannel}`
       );
     }
 
@@ -545,8 +515,6 @@ app.post(UPVOTE_API, async (req, res) => {
  */
 app.post("/internal/on-app-install", async (_req, res) => {
   try {
-    console.log("Reddit server: App install triggered");
-
     // Get current subreddit
     const subreddit = await reddit.getCurrentSubreddit();
 
@@ -557,10 +525,9 @@ app.post("/internal/on-app-install", async (_req, res) => {
       splash: {
         backgroundUri: "menu2.png",
         buttonLabel: "Play",
+        appIconUri: "icon.png",
       },
     });
-
-    console.log(`Created initial post: ${post.id}`);
 
     res.json({ success: true, postId: post.id });
   } catch (error) {
@@ -575,8 +542,6 @@ app.post("/internal/on-app-install", async (_req, res) => {
  */
 app.post("/internal/menu/provide-data", async (_req, res) => {
   try {
-    console.log("Reddit server: Provide data menu action triggered");
-
     // Placeholder implementation
     // This can be extended to seed daily challenges, events, etc.
 
@@ -608,7 +573,5 @@ export function startServer() {
   const port = getServerPort();
 
   // Start listening
-  server.listen(port, () => {
-    console.log(`Reddit server listening on port ${port}`);
-  });
+  server.listen(port, () => {});
 }

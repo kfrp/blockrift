@@ -71,8 +71,4 @@ async function processUpvote(
   // Increment totalUpvotesGiven counter for upvoter
   const upvoterKey = `player:${username}:${level}`;
   await redis.hIncrBy(upvoterKey, "totalUpvotesGiven", 1);
-
-  console.log(
-    `${builderUsername} upvoted by ${username}, new score: ${newScore}`
-  );
 }

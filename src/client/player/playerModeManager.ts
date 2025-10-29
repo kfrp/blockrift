@@ -67,10 +67,6 @@ export class PlayerModeManager {
       this.friendedBy = connectResponse.playerData.friendedBy;
     }
 
-    console.log(
-      `PlayerModeManager: Initialized in ${this.mode} mode for ${this.username}`
-    );
-
     if (this.mode === "viewer") {
       this.showViewerModeNotification(connectResponse.message);
     }
@@ -151,7 +147,6 @@ export class PlayerModeManager {
    */
   updateScore(newScore: number): void {
     this.score = newScore;
-    console.log(`PlayerModeManager: Score updated to ${newScore}`);
   }
 
   /**
@@ -188,7 +183,7 @@ export class PlayerModeManager {
       if (result.ok) {
         // Update local friends list with server response
         this.friends = result.friends;
-        console.log(`Successfully added ${friendUsername} as friend`);
+
         return { success: true, message: result.message };
       } else {
         console.warn(`Failed to add friend: ${result.message}`);
@@ -230,7 +225,7 @@ export class PlayerModeManager {
       if (result.ok) {
         // Update local friends list with server response
         this.friends = result.friends;
-        console.log(`Successfully removed ${friendUsername} from friends`);
+
         return { success: true, message: result.message };
       } else {
         console.warn(`Failed to remove friend: ${result.message}`);
@@ -247,7 +242,7 @@ export class PlayerModeManager {
    */
   private showViewerModeNotification(message?: string): void {
     const notification = message || "You are in Viewer Mode";
-    console.log(`VIEWER MODE: ${notification}`);
+
     // UI notification is handled by playerModeUI.showViewerModeNotification()
   }
 
@@ -278,16 +273,10 @@ export class PlayerModeManager {
       // Add byUsername to friendedBy array if not already present
       if (!this.friendedBy.includes(data.byUsername)) {
         this.friendedBy.push(data.byUsername);
-        console.log(
-          `PlayerModeManager: ${data.byUsername} added you as a friend. You can now remove their blocks.`
-        );
       }
     } else if (data.type === "friendship-removed") {
       // Remove byUsername from friendedBy array
       this.friendedBy = this.friendedBy.filter((u) => u !== data.byUsername);
-      console.log(
-        `PlayerModeManager: ${data.byUsername} removed you as a friend. You can no longer remove their blocks.`
-      );
     }
   }
 }

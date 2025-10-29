@@ -98,10 +98,6 @@ export class UpvoteManager {
     // Calculate optimistic score (current + 1)
     const optimisticScore = this.getOptimisticScore(builderUsername);
 
-    console.log(
-      `Optimistically upvoted ${builderUsername}, estimated score: ${optimisticScore}`
-    );
-
     // Fire-and-forget server request
     fetch(window.ENDPOINTS.UPVOTE_API, {
       method: "POST",

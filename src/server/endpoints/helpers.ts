@@ -157,8 +157,6 @@ export async function getOrCreatePlayerData(
     // Set TTL to 7 days
     await redis.expire(key, 7 * 24 * 60 * 60);
 
-    console.log(`Initialized player data for ${username} in level ${level}`);
-
     return initialData;
   }
 
@@ -210,10 +208,6 @@ export async function updatePlayerScore(
 
   // Update last active timestamp
   await redis.hSet(key, { lastActive: Date.now().toString() });
-
-  console.log(
-    `Updated ${username}'s score by ${increment} to ${newScore} in level ${level}`
-  );
 
   return Number(newScore);
 }
@@ -276,10 +270,6 @@ export async function addGlobalFriend(
       [friendUsername]: JSON.stringify(friendedBy),
     });
   }
-
-  console.log(
-    `${username} added ${friendUsername} as friend (global hashes updated)`
-  );
 }
 
 /**
@@ -310,10 +300,6 @@ export async function removeGlobalFriend(
       [friendUsername]: JSON.stringify(updatedFriendedBy),
     });
   }
-
-  console.log(
-    `${username} removed ${friendUsername} from friends (global hashes updated)`
-  );
 }
 
 // ============================================================================
@@ -343,7 +329,6 @@ export async function addActivePlayer(
 ): Promise<void> {
   const key = `players:${level}`;
   await redis.hSet(key, { [username]: Date.now().toString() });
-  console.log(`Added ${username} to active players in level ${level}`);
 }
 
 /**
@@ -355,7 +340,6 @@ export async function removeActivePlayer(
 ): Promise<void> {
   const key = `players:${level}`;
   await redis.hDel(key, [username]);
-  console.log(`Removed ${username} from active players in level ${level}`);
 }
 
 // ============================================================================
@@ -388,13 +372,8 @@ export async function initializeTerrainSeeds(level: string): Promise<void> {
     };
 
     await redis.set(key, JSON.stringify(seeds));
-    console.log(`Initialized terrain seeds for level "${level}":`, seeds);
   } else {
     const existingSeeds = await getTerrainSeeds(level);
-    console.log(
-      `Terrain seeds already exist for level "${level}":`,
-      existingSeeds
-    );
   }
 }
 
@@ -505,8 +484,6 @@ export async function incrementPlayerCount(level: string): Promise<void> {
   const newCount = currentCount + 1;
   levelPlayerCounts.set(level, newCount);
 
-  console.log(`Player count for level ${level}: ${newCount}`);
-
   // Broadcast to game-level channel
   await realtime.send(`game:${level}`, {
     type: "player-count-update",
@@ -522,8 +499,6 @@ export async function decrementPlayerCount(level: string): Promise<void> {
   const currentCount = levelPlayerCounts.get(level) || 0;
   const newCount = Math.max(0, currentCount - 1);
   levelPlayerCounts.set(level, newCount);
-
-  console.log(`Player count for level ${level}: ${newCount}`);
 
   // Broadcast to game-level channel
   await realtime.send(`game:${level}`, {
@@ -630,9 +605,6 @@ export async function calculateSpawnPosition(
 ): Promise<Position> {
   // If lastKnownPosition exists, return it immediately
   if (lastKnownPosition) {
-    console.log(
-      `Using last known position: (${lastKnownPosition.x}, ${lastKnownPosition.y}, ${lastKnownPosition.z})`
-    );
     return lastKnownPosition;
   }
 
@@ -640,8 +612,6 @@ export async function calculateSpawnPosition(
   // Region size is 15 chunks * 24 blocks = 360 blocks
   const randomX = Math.floor(Math.random() * 360) - 180; // Range: -180 to 179
   const randomZ = Math.floor(Math.random() * 360) - 180; // Range: -180 to 179
-
-  console.log(`Generated random spawn base: (${randomX}, 50, ${randomZ})`);
 
   // Default spawn position with randomized X,Z
   // Y is set high (50) so player spawns above terrain and falls to ground
@@ -668,21 +638,11 @@ export async function calculateSpawnPosition(
     );
 
     if (!hasCustomBlocks) {
-      console.log(
-        `Found unoccupied spawn position without custom blocks: (${candidatePosition.x}, ${candidatePosition.y}, ${candidatePosition.z})`
-      );
       return candidatePosition;
     } else {
-      console.log(
-        `Position (${candidatePosition.x}, ${candidatePosition.z}) has custom blocks, trying next position`
-      );
     }
   }
 
-  // Fallback to randomized default spawn if all positions occupied or have custom blocks
-  console.log(
-    `All spawn positions occupied or have custom blocks, using randomized default spawn: (${defaultSpawn.x}, ${defaultSpawn.y}, ${defaultSpawn.z})`
-  );
   return defaultSpawn;
 }
 
@@ -737,7 +697,6 @@ export async function findActiveLevels(
     }
   }
 
-  console.log(`Found ${activeLevels.length} active levels for ${username}`);
   return activeLevels;
 }
 
@@ -775,14 +734,9 @@ export async function broadcastFriendshipUpdate(
             };
 
       const channel = `game:${connectedClient.level}`;
-      console.log(
-        `[DEBUG] Server broadcasting friendship-${action} to channel: ${channel} (currently connected)`
-      );
+
       await realtime.send(channel, message);
 
-      console.log(
-        `Broadcast friendship-${action} to ${channel} for ${friendUsername} (currently connected)`
-      );
       return;
     }
   }
@@ -791,16 +745,11 @@ export async function broadcastFriendshipUpdate(
   const activeLevels = await findActiveLevels(friendUsername);
 
   if (activeLevels.length === 0) {
-    console.log(
-      `No active levels found for ${friendUsername}, skipping broadcast`
-    );
     return;
   }
 
   // For each active level, broadcast to the game-level channel
-  console.log(
-    `[DEBUG] Broadcasting to ${activeLevels.length} active levels for ${friendUsername}`
-  );
+
   for (const { level } of activeLevels) {
     // Create broadcast message
     const message: FriendshipAddedMessage | FriendshipRemovedMessage =
@@ -820,13 +769,7 @@ export async function broadcastFriendshipUpdate(
 
     // Broadcast to game-level channel
     const channel = `game:${level}`;
-    console.log(
-      `[DEBUG] Server broadcasting friendship-${action} to channel: ${channel}`
-    );
-    await realtime.send(channel, message);
 
-    console.log(
-      `Broadcast friendship-${action} to ${channel} for ${friendUsername} (recent activity)`
-    );
+    await realtime.send(channel, message);
   }
 }

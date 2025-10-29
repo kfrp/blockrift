@@ -22,25 +22,12 @@ export async function handleChunkState(
 ): Promise<ChunkStateResponse> {
   const requestTimestamp = Date.now();
 
-  // Log request with chunk count
-  console.log(
-    `Chunk state request from ${username} for ${chunks.length} chunks in level ${level}`
-  );
-
   // Validate chunk coordinates are within bounds
   const validChunks = chunks.filter(({ chunkX, chunkZ }) => {
     const isValid = Math.abs(chunkX) <= 10000 && Math.abs(chunkZ) <= 10000;
-    if (!isValid) {
-      console.log(`Skipping invalid chunk coordinates: (${chunkX}, ${chunkZ})`);
-    }
+
     return isValid;
   });
-
-  console.log(
-    `Processing ${validChunks.length} valid chunks (${
-      chunks.length - validChunks.length
-    } invalid)`
-  );
 
   // Fetch chunks sequentially (Reddit Redis doesn't support pipelining)
   const chunkStates: Array<{
@@ -55,9 +42,6 @@ export async function handleChunkState(
     const blocks: Array<Block> = [];
 
     if (chunkData && Object.keys(chunkData).length > 0) {
-      console.log(`=== LOADING CHUNK (${chunkX}, ${chunkZ}) FROM REDIS ===`);
-      console.log(`  Total keys in chunk: ${Object.keys(chunkData).length}`);
-
       for (const [key, value] of Object.entries(chunkData)) {
         // Parse block key: "block:x:y:z"
         const [_, xStr, yStr, zStr] = key.split(":");
@@ -67,8 +51,6 @@ export async function handleChunkState(
 
         // Parse block data
         const data = JSON.parse(value);
-
-        console.log(`REDIS HGET chunk(${chunkX},${chunkZ}) ${key} = ${value}`);
 
         blocks.push({
           x,
@@ -84,9 +66,6 @@ export async function handleChunkState(
 
       const placedCount = blocks.filter((b) => b.placed).length;
       const removedCount = blocks.filter((b) => !b.placed).length;
-      console.log(
-        `  Loaded ${placedCount} placed, ${removedCount} removed blocks`
-      );
     }
 
     chunkStates.push({ chunkX, chunkZ, blocks });
@@ -103,9 +82,6 @@ export async function handleChunkState(
 
   // Log response time and chunk count
   const responseTime = responseTimestamp - requestTimestamp;
-  console.log(
-    `Sent chunk state response: ${chunkStates.length} chunks, ${responseTime}ms`
-  );
 
   return response;
 }

@@ -10,6 +10,7 @@ import MultiplayerManager from "./state/multiplayer";
 import { ChatManager } from "./ui/chatManager";
 import { ChatUI } from "./ui/chatUI";
 import { LoadingManager } from "./utils/loadingManager";
+import { ChunkBasedPositionManager } from "./state/positionManager";
 import * as THREE from "three";
 
 // Initialize loading manager and start loading process
@@ -99,44 +100,11 @@ function initializeGame(connectionData: any) {
       ui.setUsername("Connection Failed");
     });
 
-  // Position update interval (once per second)
-  // Only send updates when position or rotation has changed
-  let lastSentPosition = camera.position.clone();
-  let lastSentRotation = {
-    x: camera.rotation.x,
-    y: camera.rotation.y,
-  };
-
-  setInterval(() => {
-    const currentPosition = camera.position;
-
-    // Calculate yaw from camera's forward direction vector
-    const direction = new THREE.Vector3();
-    camera.getWorldDirection(direction);
-    const yaw = Math.atan2(direction.x, direction.z);
-
-    const currentRotation = {
-      x: camera.rotation.x,
-      y: yaw,
-    };
-
-    const positionChanged = !currentPosition.equals(lastSentPosition);
-
-    // A more robust way to check for rotation changes
-    const rotationChanged =
-      Math.abs(currentRotation.y - lastSentRotation.y) > 0.05;
-
-    // Only send update if something changed
-    if (positionChanged || rotationChanged) {
-      // --- IMPROVEMENT ---
-      // Pass currentRotation directly since it's already a THREE.Euler object
-      multiplayer.sendPositionUpdate(currentPosition, currentRotation);
-
-      // Update last sent values using the efficient .copy() method
-      lastSentPosition.copy(currentPosition);
-      lastSentRotation = currentRotation;
-    }
-  }, 1000);
+  // Chunk-based position updates (only send when crossing chunk boundaries)
+  const positionManager = new ChunkBasedPositionManager(
+    multiplayer.getUsername(),
+    connectionData.level
+  );
 
   // animation
   (function animate() {
@@ -147,6 +115,16 @@ function initializeGame(connectionData: any) {
     control.update();
     terrain.update();
     multiplayer.update(delta);
+
+    // Check for chunk-based position updates
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    const yaw = Math.atan2(direction.x, direction.z);
+    const currentRotation = {
+      x: camera.rotation.x,
+      y: yaw,
+    };
+    positionManager.checkPosition(camera.position, currentRotation);
 
     renderer.render(scene, camera);
   })();

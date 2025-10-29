@@ -28,42 +28,6 @@ BlockRift brings the classic voxel sandbox experience directly to Reddit. Build 
 
 ---
 
-## 🎮 What is BlockRift?
-
-BlockRift brings the classic voxel sandbox experience directly to Reddit. Build structures, mine resources, and collaborate with friends in a persistent multiplayer world. The game features:
-
-- **Infinite procedurally-generated terrain** with realistic biomes, trees, and underground resources
-- **Real-time multiplayer** with position synchronization and collaborative building
-- **12 different block types** including grass, sand, tree logs, leaves, dirt, stone, coal, wood planks, diamond, quartz, glass, and bedrock
-- **Global friendship system** allowing trusted players to modify each other's creations across all worlds
-- **Builder recognition** with upvoting system to appreciate great builds
-- **Persistent world state** stored in Redis - your creations are saved automatically
-- **Real-time chat system** for communication with other players (press C to chat)
-- **Mobile-friendly controls** with touch joystick and optimized UI
-- **Smooth 60 FPS gameplay** powered by Three.js and Web Workers
-- **Smart spawn positioning** to avoid player overlap and existing structures
-- **Walking and flying modes** with realistic physics including gravity, jumping, and sneaking
-
----
-
-## 🎮 What is BlockRift?
-
-BlockRift brings the classic voxel sandbox experience directly to Reddit. Build structures, mine resources, and collaborate with friends in a persistent multiplayer world. The game features:
-
-- **Infinite procedurally-generated terrain** with realistic biomes, trees, and underground resources
-- **Real-time multiplayer** with position synchronization and collaborative building
-- **12 different block types** including grass, sand, tree logs, leaves, dirt, stone, coal, wood planks, diamond, quartz, glass, and bedrock
-- **Global friendship system** allowing trusted players to modify each other's creations across all worlds
-- **Builder recognition** with upvoting system to appreciate great builds
-- **Persistent world state** stored in Redis - your creations are saved automatically
-- **Real-time chat system** for communication with other players (press C to chat)
-- **Mobile-friendly controls** with touch joystick and optimized UI
-- **Smooth 60 FPS gameplay** powered by Three.js and Web Workers
-- **Smart spawn positioning** to avoid player overlap and existing structures
-- **Walking and flying modes** with realistic physics including gravity, jumping, and sneaking
-
----
-
 ## 🌟 What Makes BlockRift Innovative?
 
 ### 1. **Reddit-Native Gaming**
@@ -138,7 +102,7 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
      - Initial chunks around your spawn position
      - Player data (score, friends, position)
      - Other active players in the level
-   - You'll spawn in a procedurally-generated world with other players
+   - You'll spaw n in a procedurally-generated world with other players
    - Your Reddit username appears in the top-right corner
    - Other players appear as colored block characters with nametags above their heads
    - If connection fails, an error modal appears with a "Retry" button
@@ -495,7 +459,7 @@ src/
 
 ## 📝 License
 
-MIT License - See LICENSE file for details
+AGPLv3 License - See LICENSE file for details
 
 ---
 
@@ -504,7 +468,6 @@ MIT License - See LICENSE file for details
 - Built with [Three.js](https://threejs.org/) for 3D rendering
 - Powered by [Reddit's Devvit Platform](https://developers.reddit.com/)
 - Textures inspired by Minecraft
-- Background music: "Hal 2" by C418
 
 ---
 

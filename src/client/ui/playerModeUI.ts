@@ -174,17 +174,12 @@ export default class PlayerModeUI {
    * Show a notification on the right side of the screen
    */
   private showNotification(message: string, type: "error" | "success"): void {
-    console.log(`[DEBUG] showNotification called: ${message}`);
     console.trace();
 
     const notification = document.createElement("div");
     notification.className = `notification notification-${type}`;
     notification.innerHTML = message;
 
-    console.log(
-      `[DEBUG] Appending notification to container:`,
-      this.notificationContainer
-    );
     this.notificationContainer.appendChild(notification);
 
     // Remove notification after 20 seconds (animation handles fade)
@@ -407,9 +402,6 @@ export default class PlayerModeUI {
     username: string,
     action: "added" | "removed"
   ): void {
-    console.log(
-      `[DEBUG] PlayerModeUI.showFriendshipNotification called: ${username} ${action}`
-    );
     console.trace(); // Show full stack trace
 
     const message =

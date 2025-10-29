@@ -58,6 +58,16 @@ interface PositionUpdatesBroadcast {
   }>;
 }
 
+interface PlayerPositionBroadcast {
+  type: "player-position";
+  username: string;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number };
+  chunkX: number;
+  chunkZ: number;
+  timestamp: number;
+}
+
 /**
  * MultiplayerManager - Manages multiplayer state and communication
  */
@@ -151,8 +161,16 @@ export default class MultiplayerManager {
 
       // Create player entities for other players (never for self in any mode)
       if (data.players && Array.isArray(data.players)) {
+        console.log(
+          `[Multiplayer] Received ${data.players.length} players from server:`,
+          data.players.map((p: any) => p.username)
+        );
         for (const playerData of data.players) {
           if (playerData.username !== data.username) {
+            console.log(
+              `[Multiplayer] Creating player entity for ${playerData.username} at`,
+              playerData.position
+            );
             const position = new THREE.Vector3(
               playerData.position.x,
               playerData.position.y,
@@ -170,8 +188,12 @@ export default class MultiplayerManager {
                 player.renderer.setTargetState(position, rotation);
               }
             }
+          } else {
+            console.log(`[Multiplayer] Skipping self (${playerData.username})`);
           }
         }
+      } else {
+        console.log("[Multiplayer] No players data received from server");
       }
 
       this.chunkStateManager.setConnection(data.username, level);
@@ -182,9 +204,6 @@ export default class MultiplayerManager {
           data.spawnPosition.x,
           data.spawnPosition.y,
           data.spawnPosition.z
-        );
-        console.log(
-          `Set camera position to spawn: (${data.spawnPosition.x}, ${data.spawnPosition.y}, ${data.spawnPosition.z})`
         );
       }
 
@@ -214,9 +233,6 @@ export default class MultiplayerManager {
       // Subscribe to game-level channel for friendship updates and player count
       // Disconnect existing connection first to prevent duplicate subscriptions
       if (this.gameLevelConnection) {
-        console.log(
-          `[DEBUG] Disconnecting existing game-level connection before reconnecting`
-        );
         await this.gameLevelConnection.disconnect();
         this.gameLevelConnection = null;
       }
@@ -224,16 +240,8 @@ export default class MultiplayerManager {
       const gameLevelChannel = `game:${level}`;
       this.gameLevelConnection = await connectRealtime({
         channel: gameLevelChannel,
-        onConnect: (ch) => {
-          console.log(
-            `MultiplayerManager: Connected to game-level channel ${ch}`
-          );
-        },
-        onDisconnect: (ch) => {
-          console.log(
-            `MultiplayerManager: Disconnected from game-level channel ${ch}`
-          );
-        },
+        onConnect: (ch) => {},
+        onDisconnect: (ch) => {},
         onMessage: (data) => this.handleMessage(data),
       });
 
@@ -305,9 +313,7 @@ export default class MultiplayerManager {
       console.warn("MultiplayerManager: Received invalid message", data);
       return;
     }
-    console.log(
-      `[DEBUG] MultiplayerManager.handleMessage called with type: ${data.type}`
-    );
+
     switch (data.type) {
       case "chat-message":
         this.chatManager.handleChatBroadcast({
@@ -322,18 +328,15 @@ export default class MultiplayerManager {
       case "player-positions":
         this.handlePositionUpdates(data as PositionUpdatesBroadcast);
         break;
+      case "player-position":
+        this.handleSinglePositionUpdate(data as PlayerPositionBroadcast);
+        break;
       case "friendship-added":
       case "friendship-removed":
-        console.log(
-          `[DEBUG] MultiplayerManager.handleMessage: Received ${data.type} broadcast for ${data.targetUsername} by ${data.byUsername}`
-        );
         this.playerModeManager.handleFriendshipBroadcast(data);
 
         // Show UI notification if this player is the target
         if (data.targetUsername === this.username) {
-          console.log(
-            `[DEBUG] MultiplayerManager: Target matches current user (${this.username}), calling showFriendshipNotification`
-          );
           this.showFriendshipNotification(
             data.byUsername,
             data.type === "friendship-added" ? "added" : "removed"
@@ -341,9 +344,6 @@ export default class MultiplayerManager {
         }
         break;
       case "player-count-update":
-        console.log(
-          `MultiplayerManager: Player count updated to ${data.count} for level ${data.level}`
-        );
         this.playerCount = data.count;
         this.triggerUIUpdate();
         break;
@@ -559,6 +559,41 @@ export default class MultiplayerManager {
     }
   }
 
+  private handleSinglePositionUpdate(data: PlayerPositionBroadcast): void {
+    const { username, position, rotation } = data;
+
+    // Ignore own position updates
+    if (username === this.username) {
+      return;
+    }
+
+    const now = Date.now();
+    this.playerLastSeen.set(username, now);
+
+    let player = this.players.get(username);
+    if (!player) {
+      // Create new player entity
+      const playerPosition = new THREE.Vector3(
+        position.x,
+        position.y,
+        position.z
+      );
+      this.createPlayerEntity(username, playerPosition);
+      player = this.players.get(username);
+      if (!player) return;
+    }
+
+    // Set target position for interpolation
+    const targetPosition = new THREE.Vector3(
+      position.x,
+      position.y,
+      position.z
+    );
+    const targetRotation = { x: rotation.x, y: rotation.y };
+
+    player.renderer.setTargetState(targetPosition, targetRotation);
+  }
+
   private cleanupStalePlayers(): void {
     const now = Date.now();
     const STALE_TIMEOUT = 10000;
@@ -688,10 +723,25 @@ export default class MultiplayerManager {
     position: THREE.Vector3
   ): PlayerEntity | undefined {
     if (username === this.username) return;
+    console.log(
+      `[Multiplayer] Creating PlayerEntityRenderer for ${username} at`,
+      position,
+      `(group will be at y=${position.y - 1.8})`
+    );
     const renderer = new PlayerEntityRenderer(username, position);
+    console.log(
+      `[Multiplayer] Adding renderer.group to scene. Group position:`,
+      renderer.group.position,
+      `Children count:`,
+      renderer.group.children.length
+    );
     this.scene.add(renderer.group);
     const playerEntity: PlayerEntity = { username, renderer };
     this.players.set(username, playerEntity);
+    console.log(
+      `[Multiplayer] Player entity created. Total players:`,
+      this.players.size
+    );
     return playerEntity;
   }
 
@@ -862,10 +912,6 @@ export default class MultiplayerManager {
     username: string,
     action: "added" | "removed"
   ): void {
-    console.log(
-      `[DEBUG] MultiplayerManager.showFriendshipNotification: ${username} ${action}, callback exists: ${!!this
-        .friendshipNotificationCallback}`
-    );
     if (this.friendshipNotificationCallback) {
       this.friendshipNotificationCallback(username, action);
     }

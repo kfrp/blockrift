@@ -4,6 +4,14 @@
  */
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+export const CHUNK_SIZE = 24;
+export const REGION_SIZE = 15;
+export const POSITION_STALE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+// ============================================================================
 // Core Data Structures
 // ============================================================================
 
@@ -228,6 +236,16 @@ export interface BlockModificationBroadcast {
 export interface PositionUpdatesBroadcast {
   type: "player-positions";
   players: Array<Player>;
+}
+
+export interface PlayerPositionBroadcast {
+  type: "player-position";
+  username: string;
+  position: Position;
+  rotation: Rotation;
+  chunkX: number;
+  chunkZ: number;
+  timestamp: number;
 }
 
 export interface FriendshipAddedMessage {

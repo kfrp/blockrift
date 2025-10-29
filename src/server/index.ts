@@ -10,7 +10,6 @@ const isLocal = process.env.VITE_ENV_MODE === "local";
 
 (async () => {
   if (isLocal) {
-    console.log("Starting mock server for local development...");
     const { startServer } = await import("./mock");
     startServer();
   } else {
