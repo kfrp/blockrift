@@ -40,8 +40,13 @@ import type {
   DisconnectRequest,
   ChatRequest,
   RealtimeInterface,
-  RedisClientType,
 } from "../types";
+
+// Import Devvit RedisClient type for casting
+import type { RedisClient } from "@devvit/web/server";
+
+// Import Redis wrapper
+import { wrapNodeRedis } from "./redis-wrapper";
 
 // Import helpers
 import {
@@ -73,6 +78,9 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 
 // Track clients by username (not WebSocket connection)
 const connectedClients = new Map<string, ConnectedClient>();
+
+// Track last broadcast state to detect changes
+const lastBroadcastState = new Map<string, string>(); // channel -> JSON string of player data
 
 // ============================================================================
 // USERNAME GENERATION
@@ -177,8 +185,14 @@ wss.on("connection", (ws: WebSocket) => {
 /**
  * Broadcast position updates for all players
  * Called periodically (1 second intervals)
+ * Only broadcasts if data has changed since last broadcast
  */
 async function broadcastPositionUpdates(): Promise<void> {
+  // Skip if no connected clients
+  if (connectedClients.size === 0) {
+    return;
+  }
+
   // Group players by level
   const playersByLevel = new Map<string, ConnectedClient[]>();
 
@@ -206,14 +220,26 @@ async function broadcastPositionUpdates(): Promise<void> {
 
     // Broadcast to each region
     for (const [channel, regionPlayers] of playersByRegion.entries()) {
-      await realtime.send(channel, {
-        type: "player-positions",
-        players: regionPlayers.map((p) => ({
-          username: p.username,
-          position: p.position || { x: 0, y: 20, z: 0 },
-          rotation: p.rotation || { x: 0, y: 0 },
-        })),
-      });
+      const playerData = regionPlayers.map((p) => ({
+        username: p.username,
+        position: p.position || { x: 0, y: 20, z: 0 },
+        rotation: p.rotation || { x: 0, y: 0 },
+      }));
+
+      // Serialize to JSON for comparison
+      const currentState = JSON.stringify(playerData);
+      const lastState = lastBroadcastState.get(channel);
+
+      // Only broadcast if data changed
+      if (currentState !== lastState) {
+        await realtime.send(channel, {
+          type: "player-positions",
+          players: playerData,
+        });
+
+        // Update last broadcast state
+        lastBroadcastState.set(channel, currentState);
+      }
     }
   }
 }
@@ -511,10 +537,10 @@ app.post(CHUNK_STATE_API, async (req, res) => {
  * Add friend endpoint
  */
 app.post(FRIENDS_ADD_API, async (req, res) => {
-  const { username, level, friendUsername } = req.body;
+  const { username, friendUsername } = req.body;
 
   try {
-    const response = await handleAddFriend(username, level, friendUsername);
+    const response = await handleAddFriend(username, friendUsername);
     res.json(response);
   } catch (error) {
     console.error("Add friend error:", error);
@@ -529,10 +555,10 @@ app.post(FRIENDS_ADD_API, async (req, res) => {
  * Remove friend endpoint
  */
 app.post(FRIENDS_REMOVE_API, async (req, res) => {
-  const { username, level, friendUsername } = req.body;
+  const { username, friendUsername } = req.body;
 
   try {
-    const response = await handleRemoveFriend(username, level, friendUsername);
+    const response = await handleRemoveFriend(username, friendUsername);
     res.json(response);
   } catch (error) {
     console.error("Remove friend error:", error);
@@ -604,8 +630,11 @@ async function initializeRedis() {
 
   console.log("Redis clients connected");
 
-  // Set global redis and realtime instances
-  setRedis(redisStore as unknown as RedisClientType);
+  // Wrap node-redis client to match Devvit's API behavior
+  const wrappedRedis = wrapNodeRedis(redisStore as any);
+
+  // Cast to Devvit RedisClient type
+  setRedis(wrappedRedis as any as RedisClient);
   setRealtime(realtime);
 
   console.log("Global redis and realtime instances set");

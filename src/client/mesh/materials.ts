@@ -2,18 +2,18 @@ import * as THREE from "three";
 import stone from "../assets/textures/block/stone.png";
 import coal_ore from "../assets/textures/block/coal_ore.png";
 import iron_ore from "../assets/textures/block/iron_ore.png";
-import grass_side from "../assets/textures/block/grass_block_side.png";
-import grass_top_green from "../assets/textures/block/grass_top_green.png";
-import dirt from "../assets/textures/block/dirt.png";
-import oak_log from "../assets/textures/block/oak_log.png";
+import grass_side from "../assets/textures/grass.png";
+import grass_top_green from "../assets/textures/Grass08.png";
+import dirt from "../assets/textures/block/coarse_dirt.png";
+import oak_log from "../assets/textures/block/mangrove_planks.png";
 import oak_log_top from "../assets/textures/block/oak_log_top.png";
-import oak_leaves from "../assets/textures/block/oak_leaves.png";
-import sand from "../assets/textures/block/sand.png";
+import oak_leaves from "../assets/textures/block/flowering_azalea_leaves.png";
+import sand from "../assets/textures/block/suspicious_sand_0.png";
 // import water from '../../assets/textures/block/water.png'
 import oak_wood from "../assets/textures/block/oak_planks.png";
-import diamond from "../assets/textures/block/diamond_block.png";
-import quartz from "../assets/textures/block/quartz_block_side.png";
-import glass from "../assets/textures/block/glass.png";
+import diamond from "../assets/textures/block/deepslate_diamond_ore.png";
+import quartz from "../assets/textures/block/quartz_bricks.png";
+import glass from "../assets/textures/block/light_gray_stained_glass.png";
 import bedrock from "../assets/textures/block/bedrock.png";
 
 export enum MaterialType {

@@ -14,7 +14,7 @@ export default class PlayerModeUI {
   private buildersListContainer: HTMLDivElement;
   private friendsListContainer: HTMLDivElement;
   private viewerModeNotification: HTMLDivElement;
-  private blockRemovalFeedback: HTMLDivElement;
+  private notificationContainer: HTMLDivElement;
 
   // State
   private isExpanded: boolean = false;
@@ -32,13 +32,13 @@ export default class PlayerModeUI {
     this.buildersListContainer = this.createBuildersListContainer();
     this.friendsListContainer = this.createFriendsListContainer();
     this.viewerModeNotification = this.createViewerModeNotification();
-    this.blockRemovalFeedback = this.createBlockRemovalFeedback();
+    this.notificationContainer = this.createNotificationContainer();
 
     // Append to body
     document.body.appendChild(this.buildersListContainer);
     document.body.appendChild(this.friendsListContainer);
     document.body.appendChild(this.viewerModeNotification);
-    document.body.appendChild(this.blockRemovalFeedback);
+    document.body.appendChild(this.notificationContainer);
 
     // Initial render
     this.updateBuildersList();
@@ -162,12 +162,28 @@ export default class PlayerModeUI {
   }
 
   /**
-   * Create block removal feedback
+   * Create notification container for right-side notifications
    */
-  private createBlockRemovalFeedback(): HTMLDivElement {
-    const feedback = document.createElement("div");
-    feedback.className = "block-removal-feedback hidden";
-    return feedback;
+  private createNotificationContainer(): HTMLDivElement {
+    const container = document.createElement("div");
+    container.className = "notification-container";
+    return container;
+  }
+
+  /**
+   * Show a notification on the right side of the screen
+   */
+  private showNotification(message: string, type: "error" | "success"): void {
+    const notification = document.createElement("div");
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = message;
+
+    this.notificationContainer.appendChild(notification);
+
+    // Remove notification after 20 seconds (animation handles fade)
+    setTimeout(() => {
+      notification.remove();
+    }, 20000);
   }
 
   /**
@@ -371,16 +387,25 @@ export default class PlayerModeUI {
   }
 
   /**
-   * Show block removal feedback
+   * Show block removal feedback (error notification on right side)
    */
   showBlockRemovalFeedback(message: string): void {
-    this.blockRemovalFeedback.innerHTML = message;
-    this.blockRemovalFeedback.classList.remove("hidden");
+    this.showNotification(message, "error");
+  }
 
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      this.blockRemovalFeedback.classList.add("hidden");
-    }, 3000);
+  /**
+   * Show friendship notification (success notification on right side)
+   */
+  showFriendshipNotification(
+    username: string,
+    action: "added" | "removed"
+  ): void {
+    const message =
+      action === "added"
+        ? `${username} has added you as a friend! You can now build AND break blocks together`
+        : `${username} has removed you as a friend`;
+
+    this.showNotification(message, action === "added" ? "success" : "error");
   }
 
   /**
@@ -519,6 +544,6 @@ export default class PlayerModeUI {
     this.buildersListContainer.remove();
     this.friendsListContainer.remove();
     this.viewerModeNotification.remove();
-    this.blockRemovalFeedback.remove();
+    this.notificationContainer.remove();
   }
 }

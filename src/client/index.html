@@ -683,6 +683,62 @@
         line-height: 1.5;
       }
 
+      /* Right-side notification system */
+      .notification-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 320px;
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+      }
+
+      .notification {
+        padding: 14px 18px;
+        border-radius: 6px;
+        font-size: 1rem;
+        line-height: 1.4;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        animation: slideInRight 0.4s ease-out, fadeOut 1s ease-in 19s forwards;
+        pointer-events: auto;
+      }
+
+      .notification-error {
+        background-color: rgba(139, 0, 0, 0.85);
+        border: 2px solid rgba(255, 107, 107, 0.8);
+        color: white;
+      }
+
+      .notification-success {
+        background-color: rgba(33, 131, 6, 0.85);
+        border: 2px solid rgba(23, 205, 7, 0.8);
+        color: white;
+      }
+
+      @keyframes slideInRight {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
+
+      /* Legacy block removal feedback (kept for backward compatibility) */
       .block-removal-feedback {
         position: fixed;
         bottom: 100px;

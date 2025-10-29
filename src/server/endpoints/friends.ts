@@ -3,12 +3,7 @@
  * Handles friend add/remove operations with global friendship hash updates and broadcasting
  */
 
-import type {
-  AddFriendRequest,
-  AddFriendResponse,
-  RemoveFriendRequest,
-  RemoveFriendResponse,
-} from "../types";
+import type { AddFriendResponse, RemoveFriendResponse } from "../types";
 import {
   addGlobalFriend,
   removeGlobalFriend,
@@ -27,7 +22,6 @@ import {
  */
 export async function handleAddFriend(
   username: string,
-  level: string,
   friendUsername: string
 ): Promise<AddFriendResponse> {
   console.log(`${username} attempting to add friend ${friendUsername}`);
@@ -78,7 +72,6 @@ export async function handleAddFriend(
  */
 export async function handleRemoveFriend(
   username: string,
-  level: string,
   friendUsername: string
 ): Promise<RemoveFriendResponse> {
   console.log(`${username} attempting to remove friend ${friendUsername}`);

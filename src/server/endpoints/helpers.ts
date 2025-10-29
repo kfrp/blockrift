@@ -152,7 +152,7 @@ export async function getOrCreatePlayerData(
     });
 
     // Add to scores sorted set for leaderboard
-    await redis.zAdd(`scores:${level}`, { score: 0, value: username });
+    await redis.zAdd(`scores:${level}`, { member: username, score: 0 });
 
     // Set TTL to 7 days
     await redis.expire(key, 7 * 24 * 60 * 60);
@@ -206,10 +206,10 @@ export async function updatePlayerScore(
   const newScore = await redis.hIncrBy(key, "score", increment);
 
   // Update sorted set for leaderboard
-  await redis.zIncrBy(`scores:${level}`, increment, username);
+  await redis.zIncrBy(`scores:${level}`, username, increment);
 
   // Update last active timestamp
-  await redis.hSet(key, "lastActive", Date.now().toString());
+  await redis.hSet(key, { lastActive: Date.now().toString() });
 
   console.log(
     `Updated ${username}'s score by ${increment} to ${newScore} in level ${level}`
@@ -265,14 +265,16 @@ export async function addGlobalFriend(
   const playerFriends = await getPlayerFriends(username);
   if (!playerFriends.includes(friendUsername)) {
     playerFriends.push(friendUsername);
-    await redis.hSet("friends", username, JSON.stringify(playerFriends));
+    await redis.hSet("friends", { [username]: JSON.stringify(playerFriends) });
   }
 
   // Update friend's friendedBy list
   const friendedBy = await getPlayerFriendedBy(friendUsername);
   if (!friendedBy.includes(username)) {
     friendedBy.push(username);
-    await redis.hSet("friendedBy", friendUsername, JSON.stringify(friendedBy));
+    await redis.hSet("friendedBy", {
+      [friendUsername]: JSON.stringify(friendedBy),
+    });
   }
 
   console.log(
@@ -294,7 +296,9 @@ export async function removeGlobalFriend(
   );
 
   if (updatedPlayerFriends.length !== playerFriends.length) {
-    await redis.hSet("friends", username, JSON.stringify(updatedPlayerFriends));
+    await redis.hSet("friends", {
+      [username]: JSON.stringify(updatedPlayerFriends),
+    });
   }
 
   // Remove from friend's friendedBy list
@@ -302,11 +306,9 @@ export async function removeGlobalFriend(
   const updatedFriendedBy = friendedBy.filter((f) => f !== username);
 
   if (updatedFriendedBy.length !== friendedBy.length) {
-    await redis.hSet(
-      "friendedBy",
-      friendUsername,
-      JSON.stringify(updatedFriendedBy)
-    );
+    await redis.hSet("friendedBy", {
+      [friendUsername]: JSON.stringify(updatedFriendedBy),
+    });
   }
 
   console.log(
@@ -320,37 +322,39 @@ export async function removeGlobalFriend(
 
 /**
  * Check if a player is currently active in a level
+ * Uses a hash to track active players (Devvit doesn't support sets)
  */
 export async function isPlayerActive(
   username: string,
   level: string
 ): Promise<boolean> {
   const key = `players:${level}`;
-  const result = await redis.sIsMember(key, username);
-  return Boolean(result);
+  const result = await redis.hGet(key, username);
+  return result !== null && result !== undefined;
 }
 
 /**
- * Add a player to the active players set for a level
+ * Add a player to the active players hash for a level
+ * Stores timestamp as value
  */
 export async function addActivePlayer(
   username: string,
   level: string
 ): Promise<void> {
   const key = `players:${level}`;
-  await redis.sAdd(key, username);
+  await redis.hSet(key, { [username]: Date.now().toString() });
   console.log(`Added ${username} to active players in level ${level}`);
 }
 
 /**
- * Remove a player from the active players set for a level
+ * Remove a player from the active players hash for a level
  */
 export async function removeActivePlayer(
   username: string,
   level: string
 ): Promise<void> {
   const key = `players:${level}`;
-  await redis.sRem(key, username);
+  await redis.hDel(key, [username]);
   console.log(`Removed ${username} from active players in level ${level}`);
 }
 
@@ -467,7 +471,7 @@ export async function storeBlockPlacement(
     timestamp: Date.now(),
   });
 
-  await redis.hSet(chunkKey, blockKey, blockData);
+  await redis.hSet(chunkKey, { [blockKey]: blockData });
 }
 
 /**
@@ -483,7 +487,7 @@ export async function removeBlock(
   const chunkKey = getChunkKey(level, chunkX, chunkZ);
   const blockKey = getBlockKey(x, y, z);
 
-  await redis.hDel(chunkKey, blockKey);
+  await redis.hDel(chunkKey, [blockKey]);
 }
 
 // ============================================================================
@@ -581,17 +585,49 @@ function isPositionOccupied(
 }
 
 /**
+ * Check if there are custom blocks at the given X,Z position (any Y level)
+ * @param level Level to check
+ * @param x X coordinate
+ * @param z Z coordinate
+ * @returns true if custom blocks exist at this position
+ */
+async function hasCustomBlocksAtPosition(
+  level: string,
+  x: number,
+  z: number
+): Promise<boolean> {
+  const { chunkX, chunkZ } = getChunkCoordinates(x, z);
+  const chunkKey = getChunkKey(level, chunkX, chunkZ);
+
+  // Get all blocks in this chunk
+  const chunkData = await redis.hGetAll(chunkKey);
+
+  // Check if any blocks match the X,Z position
+  for (const key of Object.keys(chunkData)) {
+    const [_, xStr, _yStr, zStr] = key.split(":");
+    const blockX = parseInt(xStr!, 10);
+    const blockZ = parseInt(zStr!, 10);
+
+    if (blockX === x && blockZ === z) {
+      return true; // Found a custom block at this position
+    }
+  }
+
+  return false; // No custom blocks at this position
+}
+
+/**
  * Calculate spawn position for a player
  * @param level Level the player is joining
  * @param connectedClients Map of connected clients
  * @param lastKnownPosition Optional last known position from Redis
  * @returns Spawn position
  */
-export function calculateSpawnPosition(
+export async function calculateSpawnPosition(
   level: string,
   connectedClients: Map<string, ConnectedClient>,
   lastKnownPosition?: Position | null
-): Position {
+): Promise<Position> {
   // If lastKnownPosition exists, return it immediately
   if (lastKnownPosition) {
     console.log(
@@ -600,10 +636,18 @@ export function calculateSpawnPosition(
     return lastKnownPosition;
   }
 
-  // Default spawn position
-  const defaultSpawn: Position = { x: 0, y: 20, z: 0 };
+  // Randomize X coordinate within region bounds (±180 blocks to stay in same region)
+  // Region size is 15 chunks * 24 blocks = 360 blocks
+  const randomX = Math.floor(Math.random() * 360) - 180; // Range: -180 to 179
+  const randomZ = Math.floor(Math.random() * 360) - 180; // Range: -180 to 179
 
-  // Try each spiral offset position
+  console.log(`Generated random spawn base: (${randomX}, 50, ${randomZ})`);
+
+  // Default spawn position with randomized X,Z
+  // Y is set high (50) so player spawns above terrain and falls to ground
+  const defaultSpawn: Position = { x: randomX, y: 50, z: randomZ };
+
+  // Try each spiral offset position from the randomized default spawn
   for (const offset of SPIRAL_OFFSETS) {
     const candidatePosition: Position = {
       x: defaultSpawn.x + offset.x,
@@ -611,18 +655,33 @@ export function calculateSpawnPosition(
       z: defaultSpawn.z + offset.z,
     };
 
-    // Check if position is occupied
-    if (!isPositionOccupied(candidatePosition, connectedClients, level, 5)) {
+    // Check if position is occupied by another player
+    if (isPositionOccupied(candidatePosition, connectedClients, level, 5)) {
+      continue; // Try next position
+    }
+
+    // Check if there are custom blocks at this X,Z position
+    const hasCustomBlocks = await hasCustomBlocksAtPosition(
+      level,
+      Math.floor(candidatePosition.x),
+      Math.floor(candidatePosition.z)
+    );
+
+    if (!hasCustomBlocks) {
       console.log(
-        `Found unoccupied spawn position: (${candidatePosition.x}, ${candidatePosition.y}, ${candidatePosition.z})`
+        `Found unoccupied spawn position without custom blocks: (${candidatePosition.x}, ${candidatePosition.y}, ${candidatePosition.z})`
       );
       return candidatePosition;
+    } else {
+      console.log(
+        `Position (${candidatePosition.x}, ${candidatePosition.z}) has custom blocks, trying next position`
+      );
     }
   }
 
-  // Fallback to default spawn if all positions occupied
+  // Fallback to randomized default spawn if all positions occupied or have custom blocks
   console.log(
-    `All spawn positions occupied, using default spawn: (${defaultSpawn.x}, ${defaultSpawn.y}, ${defaultSpawn.z})`
+    `All spawn positions occupied or have custom blocks, using randomized default spawn: (${defaultSpawn.x}, ${defaultSpawn.y}, ${defaultSpawn.z})`
   );
   return defaultSpawn;
 }
@@ -646,34 +705,26 @@ export async function findActiveLevels(
   const TWO_HOURS_MS = 7200000; // 2 hours in milliseconds
   const now = Date.now();
 
-  // Use KEYS to find all level keys for this user
-  const pattern = `player:${username}:*`;
-  const keys = await redis.keys(pattern);
+  // Get list of levels this user has joined from tracking hash
+  // Note: Devvit doesn't support KEYS or SCAN, so we maintain a separate hash
+  const userLevelsKey = `user:${username}:levels`;
+  const levelsData = await redis.hGetAll(userLevelsKey);
 
   const activeLevels: ActiveLevel[] = [];
 
-  for (const key of keys) {
-    // Parse level name from key pattern: player:{username}:{level}
-    const keyStr = key.toString();
-    const parts = keyStr.split(":");
-    if (parts.length < 3) continue;
-    const level = parts.slice(2).join(":"); // Handle level names with colons
-
-    // Retrieve lastJoined field from hash
-    const lastJoinedStr = await redis.hGet(keyStr, "lastJoined");
-    if (!lastJoinedStr) continue;
-
-    const lastJoined = parseInt(lastJoinedStr.toString(), 10);
+  for (const [level, lastJoinedStr] of Object.entries(levelsData)) {
+    const lastJoined = parseInt(lastJoinedStr, 10);
 
     // Filter levels where lastJoined is within 2 hours
     if (now - lastJoined <= TWO_HOURS_MS) {
-      // Retrieve lastKnownPosition
-      const positionStr = await redis.hGet(keyStr, "lastKnownPosition");
+      // Retrieve lastKnownPosition from player data
+      const playerKey = `player:${username}:${level}`;
+      const positionStr = await redis.hGet(playerKey, "lastKnownPosition");
       let position: Position = { x: 0, y: 20, z: 0 }; // Default spawn
 
-      if (positionStr && positionStr.toString() !== "") {
+      if (positionStr && positionStr !== "") {
         try {
-          position = JSON.parse(positionStr.toString());
+          position = JSON.parse(positionStr);
         } catch (e) {
           console.error(
             `Failed to parse lastKnownPosition for ${username} in ${level}:`,

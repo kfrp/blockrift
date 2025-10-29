@@ -295,6 +295,15 @@ export default class UI {
       }
     });
 
+    // Set up friendship notification callback
+    multiplayer.setFriendshipNotificationCallback(
+      (username: string, action: "added" | "removed") => {
+        if (this.playerModeUI) {
+          this.playerModeUI.showFriendshipNotification(username, action);
+        }
+      }
+    );
+
     // Add keyboard shortcut to toggle friends list (F key when not in pointer lock)
     document.body.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "F" && !document.pointerLockElement && this.playerModeUI) {

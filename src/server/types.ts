@@ -262,50 +262,10 @@ export interface ChatBroadcast {
 // ============================================================================
 
 /**
- * Redis client interface
- * Compatible with both node-redis and Devvit's redis instance
+ * Note: We don't define a custom RedisClientType interface anymore.
+ * Instead, we use the RedisClient type from @devvit/web/server directly.
+ * The mock server uses the standard node-redis client which has a compatible API.
  */
-export interface RedisClientType {
-  // String operations
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string): Promise<string | null>;
-  exists(key: string): Promise<number>;
-  expire(key: string, seconds: number): Promise<number>;
-  keys(pattern: string): Promise<string[]>;
-  del(key: string): Promise<number>;
-
-  // Hash operations
-  hGet(key: string, field: string): Promise<string | null>;
-  hSet(
-    key: string,
-    field: string | Record<string, string>,
-    value?: string
-  ): Promise<number>;
-  hGetAll(key: string): Promise<Record<string, string>>;
-  hIncrBy(key: string, field: string, increment: number): Promise<number>;
-  hDel(key: string, field: string): Promise<number>;
-
-  // Set operations
-  sAdd(key: string, member: string): Promise<number>;
-  sRem(key: string, member: string): Promise<number>;
-  sIsMember(key: string, member: string): Promise<boolean>;
-
-  // Sorted set operations
-  zAdd(key: string, member: { score: number; value: string }): Promise<number>;
-  zIncrBy(key: string, increment: number, member: string): Promise<number>;
-
-  // Pipeline operations
-  multi(): RedisPipeline;
-}
-
-/**
- * Redis pipeline interface for batch operations
- */
-export interface RedisPipeline {
-  hGetAll(key: string): RedisPipeline;
-  hSet(key: string, field: string, value: string): RedisPipeline;
-  exec(): Promise<any[]>;
-}
 
 /**
  * Realtime interface for broadcasting messages

@@ -63,7 +63,7 @@ async function processUpvote(
   const newScore = await redis.hIncrBy(builderKey, "score", 1);
 
   // Update leaderboard sorted set
-  await redis.zIncrBy(`scores:${level}`, 1, builderUsername);
+  await redis.zIncrBy(`scores:${level}`, 1 as never, builderUsername as never);
 
   // Increment totalUpvotesReceived counter for builder
   await redis.hIncrBy(builderKey, "totalUpvotesReceived", 1);

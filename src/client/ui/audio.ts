@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import hal3 from "../assets/music/hal3.ogg";
+import hal3 from "../assets/music/hal2.ogg";
 import { BlockType } from "../terrain";
 
 import grass1 from "../assets/sounds/grass1.ogg";

@@ -77,6 +77,9 @@ export default class MultiplayerManager {
   private uiUpdateCallback: (() => void) | null = null;
   private blockRemovalFeedbackCallback: ((message: string) => void) | null =
     null;
+  private friendshipNotificationCallback:
+    | ((username: string, action: "added" | "removed") => void)
+    | null = null;
   private currentPlayerChunk: { x: number; z: number } = { x: 0, z: 0 };
   private playerCount: number = 0;
   private level: string = "default";
@@ -172,6 +175,18 @@ export default class MultiplayerManager {
       }
 
       this.chunkStateManager.setConnection(data.username, level);
+
+      // Apply spawn position to camera
+      if (data.spawnPosition) {
+        this.camera.position.set(
+          data.spawnPosition.x,
+          data.spawnPosition.y,
+          data.spawnPosition.z
+        );
+        console.log(
+          `Set camera position to spawn: (${data.spawnPosition.x}, ${data.spawnPosition.y}, ${data.spawnPosition.z})`
+        );
+      }
 
       // Subscribe to regional channels in both modes
       if (data.spawnPosition) {
@@ -301,6 +316,14 @@ export default class MultiplayerManager {
           `MultiplayerManager: Received ${data.type} broadcast for ${data.targetUsername} by ${data.byUsername}`
         );
         this.playerModeManager.handleFriendshipBroadcast(data);
+
+        // Show UI notification if this player is the target
+        if (data.targetUsername === this.username) {
+          this.showFriendshipNotification(
+            data.byUsername,
+            data.type === "friendship-added" ? "added" : "removed"
+          );
+        }
         break;
       case "player-count-update":
         console.log(
@@ -783,6 +806,15 @@ export default class MultiplayerManager {
   }
 
   /**
+   * Set friendship notification callback
+   */
+  setFriendshipNotificationCallback(
+    callback: (username: string, action: "added" | "removed") => void
+  ): void {
+    this.friendshipNotificationCallback = callback;
+  }
+
+  /**
    * Optimistically update builders list (called when player places/removes block)
    */
   updateBuildersListOptimistically(): void {
@@ -806,5 +838,24 @@ export default class MultiplayerManager {
     if (this.blockRemovalFeedbackCallback) {
       this.blockRemovalFeedbackCallback(message);
     }
+  }
+
+  /**
+   * Show friendship notification
+   */
+  private showFriendshipNotification(
+    username: string,
+    action: "added" | "removed"
+  ): void {
+    if (this.friendshipNotificationCallback) {
+      this.friendshipNotificationCallback(username, action);
+    }
+  }
+
+  /**
+   * Show block removal error (public method for control.ts)
+   */
+  showBlockRemovalError(message: string): void {
+    this.showBlockRemovalFeedback(message);
   }
 }

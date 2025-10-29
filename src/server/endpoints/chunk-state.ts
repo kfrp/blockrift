@@ -4,7 +4,7 @@
  */
 
 import { redis } from "../globals";
-import type { ChunkStateRequest, ChunkStateResponse, Block } from "../types";
+import type { ChunkStateResponse, Block } from "../types";
 
 /**
  * Handle chunk state request
@@ -42,72 +42,51 @@ export async function handleChunkState(
     } invalid)`
   );
 
-  // Use Redis pipelining for batch fetch
-  const pipeline = redis.multi();
-
-  for (const { chunkX, chunkZ } of validChunks) {
-    const chunkKey = getChunkKey(level, chunkX, chunkZ);
-    pipeline.hGetAll(chunkKey);
-  }
-
-  // Execute pipeline and collect results
-  const results = await pipeline.exec();
-
-  // Parse chunk data for each result
+  // Fetch chunks sequentially (Reddit Redis doesn't support pipelining)
   const chunkStates: Array<{
     chunkX: number;
     chunkZ: number;
     blocks: Array<Block>;
   }> = [];
 
-  for (let i = 0; i < validChunks.length; i++) {
-    const { chunkX, chunkZ } = validChunks[i]!;
-    const result = results?.[i];
-
-    // Parse chunk data
+  for (const { chunkX, chunkZ } of validChunks) {
+    const chunkKey = getChunkKey(level, chunkX, chunkZ);
+    const chunkData = await redis.hGetAll(chunkKey);
     const blocks: Array<Block> = [];
 
-    // Redis multi().exec() returns direct results, not [error, value] tuples
-    if (result && typeof result === "object" && !Array.isArray(result)) {
-      // Type assertion needed for pipeline results
-      const chunkData: Record<string, string> = result as any;
+    if (chunkData && Object.keys(chunkData).length > 0) {
+      console.log(`=== LOADING CHUNK (${chunkX}, ${chunkZ}) FROM REDIS ===`);
+      console.log(`  Total keys in chunk: ${Object.keys(chunkData).length}`);
 
-      if (Object.keys(chunkData).length > 0) {
-        console.log(`=== LOADING CHUNK (${chunkX}, ${chunkZ}) FROM REDIS ===`);
-        console.log(`  Total keys in chunk: ${Object.keys(chunkData).length}`);
+      for (const [key, value] of Object.entries(chunkData)) {
+        // Parse block key: "block:x:y:z"
+        const [_, xStr, yStr, zStr] = key.split(":");
+        const x = parseInt(xStr!, 10);
+        const y = parseInt(yStr!, 10);
+        const z = parseInt(zStr!, 10);
 
-        for (const [key, value] of Object.entries(chunkData)) {
-          // Parse block key: "block:x:y:z"
-          const [_, xStr, yStr, zStr] = key.split(":");
-          const x = parseInt(xStr!, 10);
-          const y = parseInt(yStr!, 10);
-          const z = parseInt(zStr!, 10);
+        // Parse block data
+        const data = JSON.parse(value);
 
-          // Parse block data
-          const data = JSON.parse(value);
+        console.log(`REDIS HGET chunk(${chunkX},${chunkZ}) ${key} = ${value}`);
 
-          console.log(
-            `REDIS HGET chunk(${chunkX},${chunkZ}) ${key} = ${value}`
-          );
-
-          blocks.push({
-            x,
-            y,
-            z,
-            type: data.type,
-            username: data.username,
-            timestamp: data.timestamp,
-            placed: data.placed !== undefined ? data.placed : true,
-            removed: data.removed,
-          });
-        }
-
-        const placedCount = blocks.filter((b) => b.placed).length;
-        const removedCount = blocks.filter((b) => !b.placed).length;
-        console.log(
-          `  Loaded ${placedCount} placed, ${removedCount} removed blocks`
-        );
+        blocks.push({
+          x,
+          y,
+          z,
+          type: data.type,
+          username: data.username,
+          timestamp: data.timestamp,
+          placed: data.placed !== undefined ? data.placed : true,
+          removed: data.removed,
+        });
       }
+
+      const placedCount = blocks.filter((b) => b.placed).length;
+      const removedCount = blocks.filter((b) => !b.placed).length;
+      console.log(
+        `  Loaded ${placedCount} placed, ${removedCount} removed blocks`
+      );
     }
 
     chunkStates.push({ chunkX, chunkZ, blocks });

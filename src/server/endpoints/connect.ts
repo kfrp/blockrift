@@ -22,6 +22,7 @@ import {
 } from "./helpers";
 import { calculateInitialChunks } from "../server-utils";
 
+const defaultSpawn = () => ({ x: 0, y: 20, z: 0 });
 /**
  * Handle connect endpoint
  * @param username Player username
@@ -63,19 +64,18 @@ export async function handleConnect(
   // For initial chunk calculation, we need to determine spawn position early
   // Load player data to check for lastKnownPosition
   let playerData = null;
+  console.log("playerdata");
   if (!isActive) {
     playerData = await getOrCreatePlayerData(username, level);
   }
-
+  console.log("pd");
   // Calculate spawn position for chunk loading
-  const spawnPosition = isActive
-    ? { x: 0, y: 20, z: 0 } // Viewers use default spawn for chunks
-    : calculateSpawnPosition(
-        level,
-        connectedClients,
-        playerData?.lastKnownPosition
-      );
-
+  const spawnPosition = await calculateSpawnPosition(
+    level,
+    connectedClients,
+    playerData?.lastKnownPosition
+  );
+  console.log("xy");
   // Calculate initial chunks based on spawn position
   const drawDistance = 3;
   const chunksToLoad = calculateInitialChunks(spawnPosition, drawDistance);
@@ -84,43 +84,29 @@ export async function handleConnect(
     `Calculating initial chunks for ${username}: ${chunksToLoad.length} chunks around (${spawnPosition.x}, ${spawnPosition.y}, ${spawnPosition.z})`
   );
 
-  // Fetch chunks from Redis using pipeline
-  const pipeline = redis.multi();
-  for (const { chunkX, chunkZ } of chunksToLoad) {
-    const chunkKey = `level:${level}:chunk:${chunkX}:${chunkZ}`;
-    pipeline.hGetAll(chunkKey);
-  }
-
-  const chunkResults = await pipeline.exec();
-
-  // Parse chunk data
+  // Fetch chunks from Redis sequentially (Reddit Redis doesn't support pipelining)
   const initialChunks: InitialConnectionResponse["initialChunks"] = [];
   let totalBlocks = 0;
 
-  for (let i = 0; i < chunksToLoad.length; i++) {
-    const chunk = chunksToLoad[i];
-    if (!chunk) continue;
-    const { chunkX, chunkZ } = chunk;
-    const result = chunkResults?.[i];
+  for (const { chunkX, chunkZ } of chunksToLoad) {
+    const chunkKey = `level:${level}:chunk:${chunkX}:${chunkZ}`;
+    const chunkData = await redis.hGetAll(chunkKey);
     const blocks: Block[] = [];
 
-    if (result && typeof result === "object" && !Array.isArray(result)) {
-      const chunkData = result as Record<string, string>;
-      if (Object.keys(chunkData).length > 0) {
-        for (const [key, value] of Object.entries(chunkData)) {
-          const [_, xStr, yStr, zStr] = key.split(":");
-          const data = JSON.parse(value);
-          blocks.push({
-            x: parseInt(xStr!, 10),
-            y: parseInt(yStr!, 10),
-            z: parseInt(zStr!, 10),
-            type: data.type,
-            username: data.username,
-            timestamp: data.timestamp,
-            placed: data.placed !== undefined ? data.placed : true,
-            removed: data.removed,
-          });
-        }
+    if (chunkData && Object.keys(chunkData).length > 0) {
+      for (const [key, value] of Object.entries(chunkData)) {
+        const [_, xStr, yStr, zStr] = key.split(":");
+        const data = JSON.parse(value);
+        blocks.push({
+          x: parseInt(xStr!, 10),
+          y: parseInt(yStr!, 10),
+          z: parseInt(zStr!, 10),
+          type: data.type,
+          username: data.username,
+          timestamp: data.timestamp,
+          placed: data.placed !== undefined ? data.placed : true,
+          removed: data.removed,
+        });
       }
     }
 
@@ -139,10 +125,10 @@ export async function handleConnect(
     .filter((c) => c.level === level) // Only include players in the same level
     .map((c) => ({
       username: c.username,
-      position: c.position || { x: 0, y: 20, z: 0 },
+      position: c.position || defaultSpawn(),
       rotation: c.rotation || { x: 0, y: 0 },
     }));
-
+  /** 
   if (isActive) {
     // Player already active - enter Viewer Mode
     console.log(`${username} already active, entering Viewer Mode`);
@@ -164,7 +150,7 @@ export async function handleConnect(
 
     return response;
   }
-
+**/
   // Player not active - enter Player Mode
   console.log(`${username} entering Player Mode`);
 
@@ -181,7 +167,11 @@ export async function handleConnect(
 
   // Update lastJoined timestamp
   const playerKey = `player:${username}:${level}`;
-  await redis.hSet(playerKey, "lastJoined", Date.now().toString());
+  await redis.hSet(playerKey, { lastJoined: Date.now().toString() });
+
+  // Track this level in user's levels hash (for friendship broadcast discovery)
+  const userLevelsKey = `user:${username}:levels`;
+  await redis.hSet(userLevelsKey, { [level]: Date.now().toString() });
 
   // Load global friendship data
   const friends = await getPlayerFriends(username);

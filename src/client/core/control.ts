@@ -426,8 +426,9 @@ export default class Control {
                 .getPlayerModeManager()
                 .canRemoveBlock(blockToCheck);
               if (!permissionCheck.allowed) {
-                console.warn(
-                  `Block removal prevented: ${permissionCheck.reason}`
+                // Show notification instead of console.warn
+                this.multiplayer.showBlockRemovalError(
+                  permissionCheck.reason || "Cannot remove this block"
                 );
                 return;
               }

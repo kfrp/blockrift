@@ -5,13 +5,12 @@
     "dir": "dist/client",
     "entrypoints": {
       "default": {
-        "inline": true,
         "entry": "index.html"
       }
     }
   },
   "media": {
-    "dir": "assets"
+    "dir": "src/client/assets"
   },
   "server": {
     "dir": "dist/server",

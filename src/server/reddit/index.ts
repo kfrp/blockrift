@@ -465,10 +465,9 @@ app.post(FRIENDS_ADD_API, async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const level = await getLevelFromContext(context.postId);
     const { friendUsername } = req.body as AddFriendRequest;
 
-    const response = await handleAddFriend(username, level, friendUsername);
+    const response = await handleAddFriend(username, friendUsername);
     res.json(response);
   } catch (error) {
     console.error("Add friend error:", error);
@@ -490,10 +489,9 @@ app.post(FRIENDS_REMOVE_API, async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const level = await getLevelFromContext(context.postId);
     const { friendUsername } = req.body as RemoveFriendRequest;
 
-    const response = await handleRemoveFriend(username, level, friendUsername);
+    const response = await handleRemoveFriend(username, friendUsername);
     res.json(response);
   } catch (error) {
     console.error("Remove friend error:", error);
@@ -545,10 +543,13 @@ app.post("/internal/on-app-install", async (_req, res) => {
     const subreddit = await reddit.getCurrentSubreddit();
 
     // Create initial post (self post with text)
-    const post = await reddit.submitPost({
-      title: "BlockRift - Multiplayer Voxel Game",
+    const post = await reddit.submitCustomPost({
+      title: "BlockRift - Multiplayer Voxel Game [#1]",
       subredditName: subreddit.name,
-      text: "Click to play the multiplayer voxel game!",
+      splash: {
+        backgroundUri: "menu2.png",
+        buttonLabel: "Play",
+      },
     });
 
     console.log(`Created initial post: ${post.id}`);
@@ -557,33 +558,6 @@ app.post("/internal/on-app-install", async (_req, res) => {
   } catch (error) {
     console.error("App install error:", error);
     res.status(500).json({ error: "Failed to create initial post" });
-  }
-});
-
-/**
- * Internal endpoint: Menu action to create new post
- * Creates a new game post from moderator menu
- */
-app.post("/internal/menu/post-create", async (_req, res) => {
-  try {
-    console.log("Reddit server: Post create menu action triggered");
-
-    // Get current subreddit
-    const subreddit = await reddit.getCurrentSubreddit();
-
-    // Create new post (self post with text)
-    const post = await reddit.submitPost({
-      title: "BlockRift - New World",
-      subredditName: subreddit.name,
-      text: "Click to play in a new world!",
-    });
-
-    console.log(`Created new post: ${post.id}`);
-
-    res.json({ success: true, postId: post.id });
-  } catch (error) {
-    console.error("Post create error:", error);
-    res.status(500).json({ error: "Failed to create post" });
   }
 });
 
