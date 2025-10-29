@@ -23,6 +23,11 @@ export default class UI {
     this.usernameLabel.innerHTML = "";
     document.body.appendChild(this.usernameLabel);
 
+    // Create position label (to the left of username)
+    this.positionLabel.className = "position-label";
+    this.positionLabel.innerHTML = "";
+    document.body.appendChild(this.positionLabel);
+
     // play
     this.play?.addEventListener("click", () => {
       if (this.play?.innerHTML === "Play") {
@@ -180,6 +185,7 @@ export default class UI {
   menu = document.querySelector(".menu");
   crossHair = document.createElement("div");
   usernameLabel = document.createElement("div");
+  positionLabel = document.createElement("div");
 
   // buttons
   play = document.querySelector("#play");
@@ -283,6 +289,12 @@ export default class UI {
     } else {
       this.usernameLabel.innerHTML = username;
     }
+  };
+
+  updatePlayerPosition = (position: THREE.Vector3) => {
+    const x = Math.floor(position.x);
+    const z = Math.floor(position.z);
+    this.positionLabel.innerHTML = `(${x}, ${z})`;
   };
 
   /**

@@ -12,7 +12,7 @@ export class AssetLoader {
   private readonly REQUIRED_ASSETS: AssetConfig[] = [
     { url: "/menu2.png", type: "image" },
     { url: "/title6.png", type: "image" },
-    { url: "/ari-w9500.ttf", type: "font" },
+    { url: "/PressStart2P-Regular.ttf", type: "font" },
   ];
 
   private readonly MAX_RETRIES = 3;

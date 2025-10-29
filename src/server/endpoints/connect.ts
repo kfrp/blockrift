@@ -256,7 +256,7 @@ export async function handleConnect(
     sessionId: username, // Use username as sessionId for compatibility
     level,
     terrainSeeds,
-    spawnPosition: { x: 0, y: 50, z: 0 },
+    spawnPosition,
     initialChunks,
     players,
     playerData: {

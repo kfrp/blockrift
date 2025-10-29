@@ -6,7 +6,9 @@ BlockRift is a browser-based Minecraft-inspired building game where you can crea
 
 The game features smooth 60 FPS gameplay powered by Three.js, real-time multiplayer synchronization via WebSocket, persistent world state stored in Redis, and an intuitive building system with 12 different block types. Whether you're building solo or collaborating with friends, BlockRift brings the classic voxel sandbox experience directly to Reddit.
 
-BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. The game works seamlessly in both standard browsers and Reddit's sandboxed iframe environment, automatically adapting controls for optimal gameplay (using left-click drag for camera control when pointer lock is unavailable).
+BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. The game works seamlessly in both standard browsers and Reddit's sandboxed iframe environment, automatically adapting controls for optimal gameplay (using left-click drag for camera control instead of pointer lock).
+
+Your position coordinates (X, Z) are displayed in the top-right corner next to your username, helping you navigate and share locations with other players. The game features a real-time chat system (press C), a global friendship system for collaborative building, and a builder recognition system with upvoting to appreciate great creations.
 
 ---
 
@@ -21,6 +23,8 @@ BlockRift is a fully-featured voxel sandbox game that runs entirely within Reddi
 - **Chat with other players** using the built-in chat system (press C)
 - **Switch between walking and flying modes** for different building styles
 - **Dig infinitely deep** - new blocks generate beneath removed ones until you hit bedrock
+- **Upvote builders** to show appreciation for impressive creations
+- **Highlight builds** by clicking builder names to see all their blocks in green
 
 The game features:
 
@@ -35,6 +39,8 @@ The game features:
 - **Smooth 60 FPS gameplay** powered by Three.js and Web Workers
 - **Smart spawn positioning** to avoid player overlap and existing structures
 - **Walking and flying modes** with realistic physics including gravity, jumping, and sneaking
+- **Sandboxed environment support** with automatic control adaptation for Reddit's iframe
+- **Viewer mode** for multi-device users to prevent conflicts
 
 ---
 
@@ -82,19 +88,39 @@ When you join a level, the server calculates a smart spawn position that avoids 
 
 ### 11. **Advanced Collision System**
 
-The game features a sophisticated collision detection system with 6-directional raycasting (front, back, left, right, up, down). When you collide with walls at an angle, the system allows you to slide along them smoothly rather than stopping completely. This creates natural movement that feels responsive and intuitive. The collision system also handles special cases like sneaking (prevents falling off edges by adding invisible collision blocks at ledges) and jumping (temporary collision adjustments). The system uses a temporary instanced mesh for efficient collision checking, testing only nearby blocks rather than the entire world.
+The game features a sophisticated collision detection system with 6-directional raycasting (front, back, left, right, up, down). When you collide with walls at an angle, the system allows you to slide along them smoothly rather than stopping completely. This creates natural movement that feels responsive and intuitive. The collision system also handles special cases like sneaking (prevents falling off edges) and jumping (temporary collision adjustments). The system uses a temporary instanced mesh for efficient collision checking, testing only nearby blocks rather than the entire world.
 
 ### 12. **Procedural Cloud Generation**
 
 The sky features dynamically generated clouds made from 50-75 small pieces clustered together. Each cloud cluster is positioned randomly across the sky at y=80, creating a realistic atmosphere. Clouds are regenerated every 6 terrain generation cycles as you explore, maintaining visual variety without impacting performance. The cloud system uses instanced rendering with up to 10,000 cloud pieces for efficient rendering.
 
+**Visual Features**:
+
+- White clouds with transparency for realistic appearance
+- Randomly positioned across the sky
+- Regenerate as you explore new areas
+- No performance impact due to instanced rendering
+
 ### 13. **Efficient Instance-Based Rendering**
 
 Instead of creating individual meshes for each block (which would be thousands of draw calls), BlockRift uses Three.js InstancedMesh to render all blocks of the same type in a single draw call. Each block type has its own InstancedMesh with pre-allocated capacity based on expected frequency (grass is common, diamonds are rare). This optimization enables smooth 60 FPS gameplay even with thousands of visible blocks.
 
+**Allocation Strategy**:
+
+- Grass blocks: 100% allocation (most common)
+- Leaves: 70% allocation (trees are common)
+- Sand, stone, coal: 20% allocation (moderately common)
+- Dirt, tree logs, wood, diamond, quartz, glass, bedrock: 10% allocation (less common)
+
+This smart allocation prevents over-allocation while ensuring capacity for all block types.
+
 ### 14. **Sandboxed Environment Support**
 
 BlockRift automatically detects when running in Reddit's sandboxed iframe environment (where pointer lock is unavailable) and seamlessly switches to alternative controls. In sandboxed mode, players left-click and drag to look around instead of using pointer lock, ensuring the game works perfectly within Reddit posts without requiring special permissions or browser features. The game shows a helpful notification when you first activate the camera to explain the controls.
+
+### 15. **Chat System**
+
+Press C to open the chat input and communicate with other players in your level. Type your message (up to 200 characters) and press Enter to send. Messages appear in the bottom-left corner with usernames and are broadcast to all players in the same world. Chat is disabled in Viewer Mode.
 
 ---
 
@@ -107,13 +133,14 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
    - Find a BlockRift post on Reddit
    - Click the "Play" button on the splash screen
    - A loading screen appears with animated bouncing blocks while assets load (images, fonts, and game data)
+   - A "Connecting..." loading bar appears while establishing connection to the server
    - The game connects to the server and fetches:
      - Terrain seeds (ensures everyone sees the same world)
      - Initial chunks around your spawn position
      - Player data (score, friends, position)
      - Other active players in the level
-   - You'll spaw n in a procedurally-generated world with other players
-   - Your Reddit username appears in the top-right corner
+   - You'll spawn in a procedurally-generated world with other players
+   - Your Reddit username and coordinates (X, Z) appear in the top-right corner
    - Other players appear as colored block characters with nametags above their heads
    - If connection fails, an error modal appears with a "Retry" button
    - If authentication fails, an error modal appears explaining the issue
@@ -121,33 +148,35 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
 
 2. **Basic Controls (Desktop)**
 
-   **Standard Mode (Pointer Lock Available):**
+   **Camera Control:**
 
-   - **WASD** - Move forward/backward/left/right
-   - **Mouse** - Look around (first-person camera)
-   - **Space** - Jump (in walking mode) or fly up (in flying mode)
-   - **Shift + Left Click** - Destroy block (hold for continuous breaking)
-   - **Right Click** - Place block (hold for continuous placing)
-   - **Mouse Wheel / Number Keys (1-8)** - Select block type from hotbar
-   - **Q** - Toggle between walking mode and flying mode
-   - **Shift** - Sneak (walking mode) or fly down (flying mode)
-   - **C** - Open chat input (type message and press Enter to send, Escape to cancel)
-   - **E** - Open menu (pause game)
-   - **F** - Toggle fullscreen
-   - **Escape** - Close chat input or unlock pointer
-
-   **Reddit Mode (Sandboxed Environment - No Pointer Lock):**
-
-   - **WASD** - Move forward/backward/left/right
    - **Left Click + Drag** - Look around (camera control)
+   - The game uses left-click drag for camera control to work in Reddit's sandboxed environment
+   - **Shift + Left Click** - Break blocks (hold Shift to prevent camera dragging)
+   - A helpful notification appears when you first activate the camera
+
+   **Movement:**
+
+   - **WASD** - Move forward/backward/left/right
    - **Space** - Jump (in walking mode) or fly up (in flying mode)
-   - **Shift + Left Click** - Destroy block (hold for continuous breaking)
+   - **Shift** - Sneak (walking mode) or fly down (flying mode)
+   - **Q** - Toggle between walking mode and flying mode
+
+   **Building:**
+
+   - **Shift + Left Click** - Destroy block (hold Shift while clicking to break blocks)
    - **Right Click** - Place block (hold for continuous placing)
    - **Mouse Wheel / Number Keys (1-8)** - Select block type from hotbar
-   - **Q** - Toggle between walking mode and flying mode
-   - **Shift** - Sneak (walking mode) or fly down (flying mode)
-   - **C** - Open chat input
-   - **E** - Open menu
+   - **Note**: Hold Shift while left-clicking to break blocks (prevents camera dragging)
+
+   **Communication:**
+
+   - **C** - Open chat input (type message and press Enter to send, Escape to cancel)
+   - **F** - Toggle friends list (when not in pointer lock)
+
+   **Menu:**
+
+   - **E** - Open/close menu (pause game)
    - **F** - Toggle fullscreen
 
 3. **Basic Controls (Mobile)**
@@ -264,6 +293,7 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
    - Examples:
      - "username has added you as a friend! You can now build AND break blocks together"
      - "Cannot remove this block - only the builder or their friends can remove it"
+   - Notifications slide in from the right with smooth animations
 
 ### Game Modes
 
@@ -293,29 +323,86 @@ Access settings by pressing **E** (opens menu) and clicking "Settings":
 
 - **Music** (On/Off):
   - Toggle background music
-  - Music plays automatically when pointer is locked (game active)
+  - Music plays automatically when game is active
   - Pauses when menu is open
   - Changes apply when you click "Apply & Close"
+
+### Guide
+
+Access the in-game guide by clicking "Guide" from the main menu. The guide includes:
+
+- **POV & Movement**: Camera controls and movement keys
+- **Building**: Block placement and destruction controls
+- **Multiplayer**: Chat, friends list, and builder interaction
+- **Other**: Menu and fullscreen controls
+
+### Audio
+
+The game features immersive audio:
+
+- **Background Music**: Atmospheric music plays during gameplay (toggle in settings)
+- **Sound Effects**: Block placement and destruction sounds
+- **Spatial Audio**: Sounds are positioned in 3D space relative to the camera
+
+### UI Elements
+
+**Hotbar** (Bottom Center):
+
+- Shows 8 block types you can place
+- Selected block is highlighted with white border
+- Use number keys 1-8 or mouse wheel to select
+
+**Crosshair** (Center):
+
+- White + symbol shows where you'll place/break blocks
+- Precise targeting for building
+
+**Username & Position** (Top Right):
+
+- Your Reddit username
+- Current coordinates (X, Z)
+- In Viewer Mode, shows "VIEWER | username" in red
+
+**Builders List** (Top Left):
+
+- Shows "Players Online" count (total players in level)
+- Shows "Builders" count (unique builders in your region)
+- Click header to expand/collapse
+- When expanded, shows all builders with friend/upvote buttons
+
+**Chat Display** (Bottom Left):
+
+- Shows recent chat messages
+- Username in green, message in white
+- Messages persist until overflow
+
+**Notifications** (Bottom Right):
+
+- Success messages in green
+- Error messages in red
+- Auto-dismiss after 20 seconds
+- Slide in from right with animation
 
 ### Tips for New Players
 
 - **Start small**: Build a simple structure to get familiar with controls before attempting large projects
 - **Use flying mode**: Press Q to toggle flying - it's much easier for building tall structures or exploring
-- **Reddit Mode**: If playing in a Reddit post, left-click and drag to look around (pointer lock isn't available in iframes)
-- **Breaking blocks**: Remember to hold Shift while left-clicking to break blocks (prevents accidental camera dragging)
+- **Camera control**: Left-click and drag to look around (the game uses this method to work in Reddit's environment)
+- **Breaking blocks**: Hold Shift while left-clicking to break blocks (this prevents accidental camera dragging)
 - **Make friends**: Add other builders as friends to collaborate on projects and modify each other's builds
 - **Explore**: The world is infinite - walk in any direction to discover new terrain, trees, and underground resources
-- **Check the builders list**: Click to expand and see who's online and what they're building in your region
+- **Check the builders list**: Click the header in the top-left to expand and see who's online and building in your region
 - **Dig deep**: Remove blocks to explore underground - new blocks generate beneath automatically until you hit bedrock
 - **Bedrock is unbreakable**: The bottom layer (y=0) prevents falling into the void - you can't break it
 - **Use the crosshair**: The white + in the center shows exactly where you'll place or break blocks
-- **Hold mouse buttons**: Hold Shift+left-click to continuously break blocks, hold right-click to continuously place
+- **Continuous actions**: Hold Shift+left-click to continuously break blocks, hold right-click to continuously place
 - **Chat with others**: Press C to communicate with nearby players and coordinate builds
-- **Highlight to learn**: Click builder names to see their blocks highlighted in green - great for learning techniques
+- **Highlight to learn**: Click builder names in the list to see their blocks highlighted in green - great for learning techniques
 - **Upvote good builds**: Show appreciation by upvoting builders whose creations you admire
 - **Watch your permissions**: You can only break blocks you placed or blocks from players who added you as a friend
 - **Spawn position persists**: When you disconnect and rejoin, you'll spawn at your last known position
 - **Smooth wall sliding**: When you hit walls at an angle, the collision system lets you slide along them naturally
+- **Expand builders list**: The builders list starts collapsed - click the header to expand and see all builders in your region
 
 ### Viewer Mode
 
@@ -352,7 +439,16 @@ If you're already playing on another device, new connections enter **Viewer Mode
    - Only player modifications (placed/removed blocks) are stored on the server
    - The rest regenerates procedurally using the same seeds
 
-2. **Chunks and Regions**
+2. **Visual Atmosphere**
+
+   - **Sky**: Light blue sky with white clouds at y=80
+   - **Fog**: Distance fog creates atmospheric depth (adjusts with render distance)
+   - **Lighting**: Directional lighting simulates sunlight
+   - **Block Textures**: Each block type has unique textures (grass, stone, wood, etc.)
+   - **Player Entities**: Other players appear as colored block characters with nametags
+   - **Highlighting**: Selected blocks glow green when clicking builder names
+
+3. **Chunks and Regions**
 
    - The world is divided into **chunks** (24×24 blocks)
    - Chunks are grouped into **regions** (15×15 chunks = 360×360 blocks)
@@ -360,7 +456,7 @@ If you're already playing on another device, new connections enter **Viewer Mode
    - The builders list shows players who built in your current region
    - Regional broadcasting ensures you only receive updates from nearby players
 
-3. **Infinite World**
+4. **Infinite World**
    - The world extends infinitely in all horizontal directions
    - Walk in any direction and new terrain generates
    - Dig down and new blocks generate beneath (until bedrock at y=0)

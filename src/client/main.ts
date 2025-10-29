@@ -126,6 +126,9 @@ function initializeGame(connectionData: any) {
     };
     positionManager.checkPosition(camera.position, currentRotation);
 
+    // Update position display in UI
+    ui.updatePlayerPosition(camera.position);
+
     renderer.render(scene, camera);
   })();
 }

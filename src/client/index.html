@@ -27,7 +27,7 @@
 
       @font-face {
         font-family: BlockRift;
-        src: url(/assets/ari-w9500.ttf);
+        src: url(/assets/PressStart2P-Regular.ttf);
         font-display: swap;
       }
 
@@ -159,6 +159,22 @@
         font-size: 1rem;
         user-select: none;
         z-index: 10;
+      }
+
+      .position-label {
+        position: fixed;
+        right: 10px;
+        top: 10px;
+        padding: 8px 12px;
+        transform: translateX(calc(-100% - 20px));
+
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+
+        font-size: 1rem;
+        user-select: none;
+        z-index: 10;
+        pointer-events: none;
       }
 
       .hidden {
