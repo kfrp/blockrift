@@ -163,7 +163,7 @@ export default class UI {
     const notification = document.createElement("div");
     notification.className = "temp-message temp-message-success";
     notification.innerHTML =
-      "Drag to look around | WASD to move | Shift+Click to break | Right-click to place";
+      "Drag to look around | Click to break | Right-click to place | Shift to sneak";
     document.body.appendChild(notification);
 
     setTimeout(() => {

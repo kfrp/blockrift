@@ -144,6 +144,7 @@
         user-select: none;
         font-size: 3rem;
         color: white;
+        display: none; /* Hidden - using mouse cursor instead */
       }
 
       .username-label {
@@ -1194,13 +1195,14 @@
 
       <div style="margin-bottom: 20px">
         <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
-          🎮 POV & Movement
+          🎮 Camera & Movement
         </h3>
         <div style="line-height: 2rem; padding-left: 10px">
           <br /><b>Left-Click + Drag:</b> Look around<br />
           <br /><b>WASD:</b> Move forward/back/left/right<br />
           <br /><b>Space:</b> Jump (or fly up in flying mode)<br />
-          <br /><b>Shift:</b> Sneak (or fly down in flying mode)<br />
+          <br /><b>Shift:</b> Sneak mode (prevents falling off edges, or fly
+          down)<br />
           <br /><b>Q:</b> Toggle walking/flying mode<br />
         </div>
       </div>
@@ -1210,10 +1212,12 @@
           🔨 Building
         </h3>
         <div style="line-height: 2rem; padding-left: 10px">
-          <br /><b>Shift + Left-Click:</b> Break blocks<br />
+          <br /><b>Left-Click:</b> Break blocks<br />
           <br /><b>Right-Click:</b> Place blocks<br />
           <br /><b>1-8 Keys:</b> Select block type<br />
           <br /><b>Mouse Wheel:</b> Scroll through blocks<br />
+          <br /><b>Shift (while moving):</b> Sneak mode - prevents falling off
+          edges<br />
         </div>
       </div>
 

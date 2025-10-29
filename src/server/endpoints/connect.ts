@@ -81,7 +81,6 @@ async function getPlayersNearPosition(
   return Array.from(playerMap.values());
 }
 
-const defaultSpawn = () => ({ x: 0, y: 20, z: 0 });
 /**
  * Handle connect endpoint
  * @param username Player username

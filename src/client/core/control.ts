@@ -417,8 +417,8 @@ export default class Control {
    * Handles mouse clicks for block interaction (add/remove)
    * It uses the block already identified by the Highlight system.
    */
-  mousedownHandler = (e: MouseEvent) => {
-    // Don't process if camera is being dragged
+  processBlockInteraction = (e: MouseEvent) => {
+    // Don't process if camera was being dragged
     if (this.isDraggingCamera) {
       return;
     }
@@ -685,7 +685,7 @@ export default class Control {
     if (!isMobile && !this.mouseHolding) {
       this.mouseHolding = true;
       this.clickInterval = setInterval(() => {
-        this.mousedownHandler(e);
+        this.processBlockInteraction(e);
       }, 333);
     }
   };
@@ -752,6 +752,9 @@ export default class Control {
 
   // Camera drag state (needs to be accessible by mousedownHandler)
   isDraggingCamera = false;
+  isMouseDown = false;
+  mouseDownX = 0;
+  mouseDownY = 0;
   lastCameraMouseX = 0;
   lastCameraMouseY = 0;
 
@@ -759,48 +762,94 @@ export default class Control {
    * Initialize mouse controls for camera rotation
    */
   initMouseControls = () => {
-    // Start dragging on right mouse button - use capture phase to run before other handlers
+    const DRAG_THRESHOLD = 3; // pixels - must move this much to be considered a drag
+    let mouseDownTime = 0;
+
+    // Track mouse down - use capture phase to run FIRST before any other handlers
     document.body.addEventListener(
       "mousedown",
       (e: MouseEvent) => {
-        // Left click WITHOUT shift = camera drag
-        // Left click WITH shift = break block (handled by mousedownHandler)
-        if (e.button === 0 && !e.shiftKey && this.cameraController.isActive) {
-          // Left click without shift
-          this.isDraggingCamera = true;
+        if (e.button === 0 && this.cameraController.isActive) {
+          // Left click - track position to detect drag
+          this.isMouseDown = true;
+          this.mouseDownX = e.clientX;
+          this.mouseDownY = e.clientY;
           this.lastCameraMouseX = e.clientX;
           this.lastCameraMouseY = e.clientY;
-          e.preventDefault();
-          e.stopPropagation();
+          mouseDownTime = Date.now();
+          this.isDraggingCamera = false;
         }
       },
       true
     ); // Use capture phase
 
-    // Rotate camera while dragging
+    // Detect drag and rotate camera while dragging
     document.body.addEventListener("mousemove", (e: MouseEvent) => {
-      if (!this.isDraggingCamera || !this.cameraController.isActive) return;
+      if (!this.cameraController.isActive || !this.isMouseDown) return;
 
-      const deltaX = e.clientX - this.lastCameraMouseX;
-      const deltaY = e.clientY - this.lastCameraMouseY;
+      // Calculate distance from mouse down position
+      const deltaFromStart =
+        Math.abs(e.clientX - this.mouseDownX) +
+        Math.abs(e.clientY - this.mouseDownY);
 
-      this.cameraController.rotate(deltaX, deltaY);
+      // Start dragging if moved enough
+      if (deltaFromStart > DRAG_THRESHOLD && !this.isDraggingCamera) {
+        this.isDraggingCamera = true;
+      }
 
-      this.lastCameraMouseX = e.clientX;
-      this.lastCameraMouseY = e.clientY;
-    });
+      if (this.isDraggingCamera) {
+        const deltaX = e.clientX - this.lastCameraMouseX;
+        const deltaY = e.clientY - this.lastCameraMouseY;
 
-    // Stop dragging
-    document.body.addEventListener("mouseup", (e: MouseEvent) => {
-      if (e.button === 0 && this.isDraggingCamera) {
-        this.isDraggingCamera = false;
+        this.cameraController.rotate(deltaX, deltaY);
+
+        this.lastCameraMouseX = e.clientX;
+        this.lastCameraMouseY = e.clientY;
       }
     });
 
+    // Stop dragging and handle click vs drag - use capture phase
+    document.body.addEventListener(
+      "mouseup",
+      (e: MouseEvent) => {
+        // Handle left-click (break blocks or camera drag)
+        if (e.button === 0 && this.isMouseDown) {
+          const timeSinceDown = Date.now() - mouseDownTime;
+          const deltaFromStart =
+            Math.abs(e.clientX - this.mouseDownX) +
+            Math.abs(e.clientY - this.mouseDownY);
+
+          this.isMouseDown = false;
+
+          if (this.isDraggingCamera) {
+            this.isDraggingCamera = false;
+            // Prevent the click from going through to block handler
+            e.preventDefault();
+            e.stopPropagation();
+          } else if (deltaFromStart > DRAG_THRESHOLD) {
+            // Moved but didn't trigger drag yet - still prevent
+
+            e.preventDefault();
+            e.stopPropagation();
+          } else {
+            // This was a clean click - process block interaction
+            this.processBlockInteraction(e);
+          }
+        }
+
+        // Handle right-click (place blocks)
+        if (e.button === 2) {
+          this.processBlockInteraction(e);
+        }
+      },
+      true
+    ); // Use capture phase to prevent click after drag
+
     // Also stop dragging if mouse leaves window
     document.body.addEventListener("mouseleave", () => {
-      if (this.isDraggingCamera) {
+      if (this.isDraggingCamera || this.isMouseDown) {
         this.isDraggingCamera = false;
+        this.isMouseDown = false;
       }
     });
   };
@@ -813,7 +862,7 @@ export default class Control {
     document.body.addEventListener("wheel", this.wheelHandler);
     document.body.addEventListener("keydown", this.setMovementHandler);
     document.body.addEventListener("keyup", this.resetMovementHandler);
-    document.body.addEventListener("mousedown", this.mousedownHandler);
+    // mousedown/mouseup for blocks are handled in initMouseControls
     document.body.addEventListener("mouseup", this.mouseupHandler);
   };
 

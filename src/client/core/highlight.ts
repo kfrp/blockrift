@@ -4,7 +4,7 @@ import * as THREE from "three";
 import Terrain from "../terrain";
 
 /**
- * BlockHighlight - Handles the visual highlight of the block under the crosshair. It raycasts directly against the actual, rendered terrain meshes.
+ * BlockHighlight - Handles the visual highlight of the block under the mouse cursor. It raycasts directly against the actual, rendered terrain meshes.
  */
 export default class BlockHighlight {
   constructor(
@@ -16,9 +16,12 @@ export default class BlockHighlight {
     this.scene = scene;
     this.terrain = terrain;
 
-    // Raycaster for detecting which block is under crosshair
+    // Raycaster for detecting which block is under mouse
     this.raycaster = new THREE.Raycaster();
     this.raycaster.far = 8; // Maximum reach distance (same as control.ts)
+
+    // Track mouse position
+    this.setupMouseTracking();
   }
 
   scene: THREE.Scene;
@@ -26,6 +29,18 @@ export default class BlockHighlight {
   terrain: Terrain;
   raycaster: THREE.Raycaster;
   block: THREE.Intersection | null = null; // Currently highlighted block
+  mousePosition = new THREE.Vector2(0, 0); // Normalized device coordinates (-1 to 1)
+
+  /**
+   * Setup mouse tracking to update raycaster position
+   */
+  private setupMouseTracking() {
+    window.addEventListener("mousemove", (event: MouseEvent) => {
+      // Convert to normalized device coordinates (-1 to 1)
+      this.mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
+      this.mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    });
+  }
 
   // The actual visible highlight box rendered in the scene
   geometry = new THREE.BoxGeometry(1.01, 1.01, 1.01); // Slightly larger
@@ -43,8 +58,8 @@ export default class BlockHighlight {
     // Always remove the previous highlight from the scene.
     this.scene.remove(this.mesh);
 
-    // Raycast from the center of the screen against the ACTUAL terrain blocks.
-    this.raycaster.setFromCamera({ x: 0, y: 0 } as THREE.Vector2, this.camera);
+    // Raycast from the mouse position against the ACTUAL terrain blocks.
+    this.raycaster.setFromCamera(this.mousePosition, this.camera);
 
     // Intersect against the array of all block meshes in the terrain.
     // This is the single source of truth for the rendered world.
