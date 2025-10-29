@@ -5,7 +5,7 @@ export default class Noise {
   noise = new ImprovedNoise();
   seed: number;
   gap = 24;
-  amp = 6;
+  amp = 2;
 
   stoneSeed: number;
   stoneGap = 12;

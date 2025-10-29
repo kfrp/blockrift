@@ -121,6 +121,11 @@ export async function connectRealtime(
   }
   if (onMessage) {
     channelHandlers.get(channel)!.add(onMessage);
+    console.log(
+      `[DEBUG] Registered handler for channel ${channel}, total handlers: ${
+        channelHandlers.get(channel)!.size
+      }`
+    );
   }
 
   if (!channelConnectCallbacks.has(channel)) {

@@ -109,6 +109,10 @@ export default class MultiplayerManager {
     level: string = "default",
     connectionData?: any
   ): Promise<void> {
+    console.log(
+      `[DEBUG] MultiplayerManager.connect called for level: ${level}`
+    );
+    console.trace(); // Show stack trace
     try {
       let data = connectionData;
 
@@ -212,6 +216,15 @@ export default class MultiplayerManager {
       }
 
       // Subscribe to game-level channel for friendship updates and player count
+      // Disconnect existing connection first to prevent duplicate subscriptions
+      if (this.gameLevelConnection) {
+        console.log(
+          `[DEBUG] Disconnecting existing game-level connection before reconnecting`
+        );
+        await this.gameLevelConnection.disconnect();
+        this.gameLevelConnection = null;
+      }
+
       const gameLevelChannel = `game:${level}`;
       this.gameLevelConnection = await connectRealtime({
         channel: gameLevelChannel,
@@ -296,6 +309,9 @@ export default class MultiplayerManager {
       console.warn("MultiplayerManager: Received invalid message", data);
       return;
     }
+    console.log(
+      `[DEBUG] MultiplayerManager.handleMessage called with type: ${data.type}`
+    );
     switch (data.type) {
       case "chat-message":
         this.chatManager.handleChatBroadcast({
@@ -313,12 +329,15 @@ export default class MultiplayerManager {
       case "friendship-added":
       case "friendship-removed":
         console.log(
-          `MultiplayerManager: Received ${data.type} broadcast for ${data.targetUsername} by ${data.byUsername}`
+          `[DEBUG] MultiplayerManager.handleMessage: Received ${data.type} broadcast for ${data.targetUsername} by ${data.byUsername}`
         );
         this.playerModeManager.handleFriendshipBroadcast(data);
 
         // Show UI notification if this player is the target
         if (data.targetUsername === this.username) {
+          console.log(
+            `[DEBUG] MultiplayerManager: Target matches current user (${this.username}), calling showFriendshipNotification`
+          );
           this.showFriendshipNotification(
             data.byUsername,
             data.type === "friendship-added" ? "added" : "removed"
@@ -847,6 +866,10 @@ export default class MultiplayerManager {
     username: string,
     action: "added" | "removed"
   ): void {
+    console.log(
+      `[DEBUG] MultiplayerManager.showFriendshipNotification: ${username} ${action}, callback exists: ${!!this
+        .friendshipNotificationCallback}`
+    );
     if (this.friendshipNotificationCallback) {
       this.friendshipNotificationCallback(username, action);
     }

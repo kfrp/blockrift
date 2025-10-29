@@ -467,7 +467,11 @@ app.post(FRIENDS_ADD_API, async (req, res) => {
 
     const { friendUsername } = req.body as AddFriendRequest;
 
-    const response = await handleAddFriend(username, friendUsername);
+    const response = await handleAddFriend(
+      username,
+      friendUsername,
+      connectedClients
+    );
     res.json(response);
   } catch (error) {
     console.error("Add friend error:", error);
@@ -491,7 +495,11 @@ app.post(FRIENDS_REMOVE_API, async (req, res) => {
 
     const { friendUsername } = req.body as RemoveFriendRequest;
 
-    const response = await handleRemoveFriend(username, friendUsername);
+    const response = await handleRemoveFriend(
+      username,
+      friendUsername,
+      connectedClients
+    );
     res.json(response);
   } catch (error) {
     console.error("Remove friend error:", error);

@@ -1,27 +1,4 @@
-import * as ENDPOINTS_IMPORT from "../shared/endpoints";
-
-declare global {
-  interface Window {
-    DEVVIT_MODE: "local" | "test";
-    ENDPOINTS: {
-      [K in keyof typeof ENDPOINTS_IMPORT]: string;
-    };
-  }
-}
-
-window.DEVVIT_MODE = "local";
-
-const ENDPOINTS = { ...ENDPOINTS_IMPORT };
-
-if (window.DEVVIT_MODE === "local") {
-  for (const key in ENDPOINTS) {
-    if (Object.prototype.hasOwnProperty.call(ENDPOINTS, key)) {
-      (ENDPOINTS as any)[key] =
-        "http://localhost:3000" + (ENDPOINTS as any)[key];
-    }
-  }
-}
-
+import ENDPOINTS from "./utils/endpoints";
 window.ENDPOINTS = ENDPOINTS;
 import Core from "./core/core";
 import Control from "./core/control";

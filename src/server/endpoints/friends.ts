@@ -3,7 +3,11 @@
  * Handles friend add/remove operations with global friendship hash updates and broadcasting
  */
 
-import type { AddFriendResponse, RemoveFriendResponse } from "../types";
+import type {
+  AddFriendResponse,
+  RemoveFriendResponse,
+  ConnectedClient,
+} from "../types";
 import {
   addGlobalFriend,
   removeGlobalFriend,
@@ -16,13 +20,14 @@ import {
  * Updates global friendship hashes and broadcasts to friend's active levels
  *
  * @param username - Username of the player adding the friend
- * @param level - Level identifier (used for logging, friendships are global)
  * @param friendUsername - Username of the friend being added
+ * @param connectedClients - Map of currently connected clients (for efficient broadcast)
  * @returns Response with updated friends list
  */
 export async function handleAddFriend(
   username: string,
-  friendUsername: string
+  friendUsername: string,
+  connectedClients?: Map<string, ConnectedClient>
 ): Promise<AddFriendResponse> {
   console.log(`${username} attempting to add friend ${friendUsername}`);
 
@@ -40,7 +45,12 @@ export async function handleAddFriend(
     await addGlobalFriend(username, friendUsername);
 
     // Broadcast friendship update to friend's active levels
-    await broadcastFriendshipUpdate(friendUsername, "added", username);
+    await broadcastFriendshipUpdate(
+      friendUsername,
+      "added",
+      username,
+      connectedClients
+    );
 
     // Get updated friends list from global hash
     const friends = await getPlayerFriends(username);
@@ -66,13 +76,14 @@ export async function handleAddFriend(
  * Updates global friendship hashes and broadcasts to friend's active levels
  *
  * @param username - Username of the player removing the friend
- * @param level - Level identifier (used for logging, friendships are global)
  * @param friendUsername - Username of the friend being removed
+ * @param connectedClients - Map of currently connected clients (for efficient broadcast)
  * @returns Response with updated friends list
  */
 export async function handleRemoveFriend(
   username: string,
-  friendUsername: string
+  friendUsername: string,
+  connectedClients?: Map<string, ConnectedClient>
 ): Promise<RemoveFriendResponse> {
   console.log(`${username} attempting to remove friend ${friendUsername}`);
 
@@ -81,7 +92,12 @@ export async function handleRemoveFriend(
     await removeGlobalFriend(username, friendUsername);
 
     // Broadcast friendship update to friend's active levels
-    await broadcastFriendshipUpdate(friendUsername, "removed", username);
+    await broadcastFriendshipUpdate(
+      friendUsername,
+      "removed",
+      username,
+      connectedClients
+    );
 
     // Get updated friends list from global hash
     const friends = await getPlayerFriends(username);

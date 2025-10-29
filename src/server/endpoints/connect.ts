@@ -189,6 +189,7 @@ export async function handleConnect(
 
   // Increment player count and broadcast
   await incrementPlayerCount(level);
+  console.log({ username });
 
   const response: InitialConnectionResponse = {
     mode: "player",
@@ -196,7 +197,7 @@ export async function handleConnect(
     sessionId: username, // Use username as sessionId for compatibility
     level,
     terrainSeeds,
-    spawnPosition,
+    spawnPosition: { x: 0, y: 50, z: 0 },
     initialChunks,
     players,
     playerData: {

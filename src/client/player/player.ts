@@ -1,9 +1,9 @@
 export enum Mode {
-  walking = 'walking',
-  sprinting = 'sprinting',
-  flying = 'flying',
-  sprintFlying = 'sprintFlying',
-  sneaking = 'sneaking'
+  walking = "walking",
+  sprinting = "sprinting",
+  flying = "flying",
+  sprintFlying = "sprintFlying",
+  sneaking = "sneaking",
 }
 
 export enum Speed {
@@ -14,22 +14,22 @@ export enum Speed {
   flying = 21.78,
   sprintFlying = 21.78,
   // sneaking = 1.95
-  sneaking = 2.55
+  sneaking = 2.55,
 }
 export default class Player {
-  mode = Mode.walking
-  speed = Speed[this.mode]
+  mode = Mode.walking;
+  speed = Speed[this.mode];
 
   setMode(Mode: Mode) {
-    this.mode = Mode
-    this.speed = Speed[this.mode]
+    this.mode = Mode;
+    this.speed = Speed[this.mode];
   }
-  falling = 38.4
+  falling = 38.4;
 
-  jump = 1.2522
+  jump = 1.2522;
 
   body = {
     height: 1.8,
-    width: 0.5
-  }
+    width: 0.5,
+  };
 }

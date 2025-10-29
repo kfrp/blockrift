@@ -121,8 +121,12 @@ const realtime: RealtimeInterface = {
       return;
     }
 
-    const message = JSON.stringify(data);
-    console.log(`Broadcasting to ${channel}: ${subscribers.size} subscribers`);
+    // Add channel to message so client can route it correctly
+    const messageWithChannel = { ...data, channel };
+    const message = JSON.stringify(messageWithChannel);
+    console.log(
+      `[DEBUG] realtime.send: Broadcasting to ${channel}: ${subscribers.size} subscribers, message type: ${data.type}`
+    );
 
     for (const ws of subscribers) {
       if (ws.readyState === WebSocket.OPEN) {
@@ -149,7 +153,11 @@ wss.on("connection", (ws: WebSocket) => {
           channelSubscribers.set(channel, new Set());
         }
         channelSubscribers.get(channel)!.add(ws);
-        console.log(`Client subscribed to channel: ${channel}`);
+        console.log(
+          `[DEBUG] Client subscribed to channel: ${channel}, total subscribers: ${
+            channelSubscribers.get(channel)!.size
+          }`
+        );
       } else if (data.type === "unsubscribe") {
         const channel = data.channel;
         const subscribers = channelSubscribers.get(channel);
@@ -362,7 +370,10 @@ app.post(CONNECT_API, async (req, res) => {
   const actualLevel = level || "default";
 
   // Generate username for development
-  const username = String(req.query.username) || assignUsername();
+  const username =
+    req.query.username && req.query.username !== "undefined"
+      ? String(req.query.username)
+      : assignUsername();
   console.log({ username });
   try {
     const response = await handleConnect(

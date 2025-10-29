@@ -746,13 +746,48 @@ export async function findActiveLevels(
  * @param friendUsername The user whose friendship status changed
  * @param action 'added' or 'removed'
  * @param byUsername The user who performed the action
+ * @param connectedClients Map of currently connected clients (optional, for checking current connection)
  */
 export async function broadcastFriendshipUpdate(
   friendUsername: string,
   action: "added" | "removed",
-  byUsername: string
+  byUsername: string,
+  connectedClients?: Map<string, ConnectedClient>
 ): Promise<void> {
-  // Find active levels for the friend
+  // First check if friend is currently connected (most efficient path)
+  if (connectedClients) {
+    const connectedClient = connectedClients.get(friendUsername);
+    if (connectedClient) {
+      // Friend is currently connected - only broadcast to their current level
+      const message: FriendshipAddedMessage | FriendshipRemovedMessage =
+        action === "added"
+          ? {
+              type: "friendship-added",
+              targetUsername: friendUsername,
+              byUsername,
+              message: `${byUsername} added you as a friend`,
+            }
+          : {
+              type: "friendship-removed",
+              targetUsername: friendUsername,
+              byUsername,
+              message: `${byUsername} removed you as a friend`,
+            };
+
+      const channel = `game:${connectedClient.level}`;
+      console.log(
+        `[DEBUG] Server broadcasting friendship-${action} to channel: ${channel} (currently connected)`
+      );
+      await realtime.send(channel, message);
+
+      console.log(
+        `Broadcast friendship-${action} to ${channel} for ${friendUsername} (currently connected)`
+      );
+      return;
+    }
+  }
+
+  // Friend is not currently connected - check recent activity
   const activeLevels = await findActiveLevels(friendUsername);
 
   if (activeLevels.length === 0) {
@@ -763,6 +798,9 @@ export async function broadcastFriendshipUpdate(
   }
 
   // For each active level, broadcast to the game-level channel
+  console.log(
+    `[DEBUG] Broadcasting to ${activeLevels.length} active levels for ${friendUsername}`
+  );
   for (const { level } of activeLevels) {
     // Create broadcast message
     const message: FriendshipAddedMessage | FriendshipRemovedMessage =
@@ -782,10 +820,13 @@ export async function broadcastFriendshipUpdate(
 
     // Broadcast to game-level channel
     const channel = `game:${level}`;
+    console.log(
+      `[DEBUG] Server broadcasting friendship-${action} to channel: ${channel}`
+    );
     await realtime.send(channel, message);
 
     console.log(
-      `Broadcast friendship-${action} to ${channel} for ${friendUsername}`
+      `Broadcast friendship-${action} to ${channel} for ${friendUsername} (recent activity)`
     );
   }
 }

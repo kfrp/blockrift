@@ -172,7 +172,7 @@ export class LoadingManager {
     let url = window.ENDPOINTS.CONNECT_API;
     let body: { level?: string } = {};
     // Check for stored username in localStorage
-    if (window.DEVVIT_MODE === "local") {
+    if (window.DEV_MODE === "local") {
       const storedUsername = localStorage.getItem("username");
       body = { level: this.getLevel() };
 
@@ -204,7 +204,7 @@ export class LoadingManager {
       }
 
       // Store username in localStorage for future connections
-      if (window.DEVVIT_MODE === "local")
+      if (window.DEV_MODE === "local")
         localStorage.setItem("username", data.username);
 
       // Success

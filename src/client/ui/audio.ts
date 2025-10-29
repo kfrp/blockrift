@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import hal3 from "../assets/music/hal2.ogg";
+import hal2 from "../assets/music/hal2.ogg";
 import { BlockType } from "../terrain";
 
 import grass1 from "../assets/sounds/grass1.ogg";
@@ -44,7 +44,7 @@ export default class Audio {
     // load bgm
     const bgm = new THREE.Audio(listener);
     bgm.autoplay = false;
-    audioLoader.load(hal3, (buffer) => {
+    audioLoader.load(hal2, (buffer) => {
       bgm.setBuffer(buffer);
       bgm.setVolume(0.1);
       bgm.setLoop(true);
