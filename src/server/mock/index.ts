@@ -336,8 +336,8 @@ app.post(CONNECT_API, async (req, res) => {
   const actualLevel = level || "default";
 
   // Generate username for development
-  const username = assignUsername();
-
+  const username = String(req.query.username) || assignUsername();
+  console.log({ username });
   try {
     const response = await handleConnect(
       username,

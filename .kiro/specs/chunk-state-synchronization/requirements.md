@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document outlines the requirements for implementing robust chunk-based state synchronization in the multiplayer Minecraft clone. The system must ensure that all clients have consistent world state by loading existing block modifications from Redis when they connect or move to new areas, while maintaining real-time synchronization for new changes through regional pub/sub channels. Block modifications are sent via HTTP fetch (with debouncing and batching), validated server-side, broadcast via regional channels, and persisted to Redis. Offline changes are stored in localStorage and validated on reconnect.
+This document outlines the requirements for implementing robust chunk-based state synchronization in the multiplayer sandbox game. The system must ensure that all clients have consistent world state by loading existing block modifications from Redis when they connect or move to new areas, while maintaining real-time synchronization for new changes through regional pub/sub channels. Block modifications are sent via HTTP fetch (with debouncing and batching), validated server-side, broadcast via regional channels, and persisted to Redis. Offline changes are stored in localStorage and validated on reconnect.
 
 ## Glossary
 

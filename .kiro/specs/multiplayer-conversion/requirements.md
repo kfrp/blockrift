@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document outlines the requirements for converting the Minecraft Three.js clone from a single-player, client-side game into a multiplayer, server-authoritative game using Redis for state management and Devvit's realtime API for synchronization. The conversion will maintain all existing client-side optimizations (chunking, InstancedMesh, procedural generation) while adding multiplayer capabilities including player synchronization, shared world state, and server-side validation.
+This document outlines the requirements for converting the sandbox Three.js game from a single-player, client-side game into a multiplayer, server-authoritative game using Redis for state management and Devvit's realtime API for synchronization. The conversion will maintain all existing client-side optimizations (chunking, InstancedMesh, procedural generation) while adding multiplayer capabilities including player synchronization, shared world state, and server-side validation.
 
 ## Glossary
 

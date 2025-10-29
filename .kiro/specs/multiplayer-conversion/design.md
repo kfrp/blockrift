@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design document outlines the architecture for converting the Minecraft Three.js clone from a single-player, client-side game into a multiplayer, server-authoritative game. The design maintains all existing client-side optimizations (InstancedMesh, chunking, Web Workers) while adding real-time synchronization using Redis and Devvit's realtime API.
+This design document outlines the architecture for converting the sandbox Three.js game from a single-player, client-side game into a multiplayer, server-authoritative game. The design maintains all existing client-side optimizations (InstancedMesh, chunking, Web Workers) while adding real-time synchronization using Redis and Devvit's realtime API.
 
 ### Key Design Principles
 

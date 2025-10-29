@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design document outlines the architecture for implementing robust chunk-based state synchronization in the multiplayer Minecraft clone. The system ensures all clients have consistent world state through:
+This design document outlines the architecture for implementing robust chunk-based state synchronization in the multiplayer sandbox game. The system ensures all clients have consistent world state through:
 
 1. **Initial state loading** via HTTP when connecting
 2. **Incremental state loading** via HTTP as player moves

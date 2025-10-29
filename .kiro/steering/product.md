@@ -4,7 +4,7 @@ inclusion: always
 
 # Product Overview
 
-This is a Minecraft-style voxel game built with Three.js and TypeScript, designed to run on Reddit's Devvit platform. The game features block placement/destruction, infinite procedurally-generated terrain, multiplayer support, and mobile-friendly controls.
+This is a sandbox voxel game built with Three.js and TypeScript, designed to run on Reddit's Devvit platform. The game features block placement/destruction, infinite procedurally-generated terrain, multiplayer support, and mobile-friendly controls.
 
 ## Current Development Focus
 

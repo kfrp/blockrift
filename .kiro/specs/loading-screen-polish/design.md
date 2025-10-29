@@ -2,12 +2,12 @@
 
 ## Overview
 
-This design implements a polished loading experience for the Minecraft clone game with two distinct phases:
+This design implements a polished loading experience for the sandbox game with two distinct phases:
 
 1. **Asset Loading Phase**: Display a retro-style loading screen while critical assets (images, fonts) load
 2. **Connection Phase**: Display the menu with a retro-style loading bar while connecting to the server
 
-The design preserves all existing menu styles and focuses on timing control and new loading component designs that match the game's Minecraft aesthetic.
+The design preserves all existing menu styles and focuses on timing control and new loading component designs that match the game's retro aesthetic.
 
 ## Architecture
 
@@ -77,7 +77,7 @@ class AssetLoader {
 
   private loadFont(url: string): Promise<void> {
     // Use FontFace API to preload font
-    const fontFace = new FontFace("Minecraft", `url(${url})`);
+    const fontFace = new FontFace("BlockRift", `url(${url})`);
     return fontFace.load().then((loaded) => {
       document.fonts.add(loaded);
     });
@@ -125,7 +125,7 @@ class AssetLoader {
 }
 
 .loading-text {
-  font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+  font-family: BlockRift, Avenir, Helvetica, Arial, sans-serif;
   font-size: 2rem;
   color: white;
   margin-bottom: 30px;
@@ -197,7 +197,7 @@ class AssetLoader {
 }
 
 .loading-bar-text {
-  font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+  font-family: BlockRift, Avenir, Helvetica, Arial, sans-serif;
   font-size: 1rem;
   color: white;
   margin-bottom: 10px;
@@ -301,7 +301,7 @@ class AssetLoader {
 }
 
 .error-modal-title {
-  font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+  font-family: BlockRift, Avenir, Helvetica, Arial, sans-serif;
   font-size: 1.5rem;
   color: #ff6b6b;
   margin-bottom: 20px;
@@ -309,7 +309,7 @@ class AssetLoader {
 }
 
 .error-modal-message {
-  font-family: Minecraft, Avenir, Helvetica, Arial, sans-serif;
+  font-family: BlockRift, Avenir, Helvetica, Arial, sans-serif;
   font-size: 1.1rem;
   color: white;
   margin-bottom: 25px;

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document outlines the requirements for implementing a polished, retro-style loading screen for the Minecraft clone game. The system must handle two distinct phases: asset loading (fonts, images) and server connection/authentication. The focus is on controlling visibility of existing UI elements at the correct times and designing new retro-style loading components (loading screen and loading bar) that match the game's Minecraft aesthetic. Existing menu styling will be preserved.
+This document outlines the requirements for implementing a polished, retro-style loading screen for the multiplayer sandbox game. The system must handle two distinct phases: asset loading (fonts, images) and server connection/authentication. The focus is on controlling visibility of existing UI elements at the correct times and designing new retro-style loading components (loading screen and loading bar) that match the game's retro aesthetic. Existing menu styling will be preserved.
 
 ## Glossary
 
@@ -11,7 +11,7 @@ This document outlines the requirements for implementing a polished, retro-style
 - **Connection Phase**: The phase where the Game Client connects to the Game Server via `/api/connect` endpoint
 - **Loading Screen**: The visual interface displayed to users while assets load and connection is established
 - **Menu Screen**: The main menu interface with Play, Settings, and Guide buttons
-- **Retro Style**: Visual design matching Minecraft's pixelated aesthetic with bordered buttons and classic color schemes
+- **Retro Style**: Visual design matching retro gaming's pixelated aesthetic with bordered buttons and classic color schemes
 - **Loading Bar**: A horizontal progress indicator showing connection status
 
 ## Requirements
@@ -25,7 +25,7 @@ This document outlines the requirements for implementing a polished, retro-style
 1. WHEN the Game Client starts, THE Game Client SHALL display a new retro-style loading screen overlay
 2. WHILE assets are loading (menu2.png, title5.png, press.ttf), THE Game Client SHALL keep the loading screen visible
 3. WHEN all required assets are loaded, THE Game Client SHALL hide the loading screen and show the menu background and title
-4. THE loading screen SHALL feature a retro visual design with pixelated borders and Minecraft-style colors
+4. THE loading screen SHALL feature a retro visual design with pixelated borders and retro colors
 5. THE loading screen SHALL display an animated loading indicator (e.g., rotating blocks or dots)
 
 ### Requirement 2

@@ -85,7 +85,7 @@ export class AssetLoader {
    * Preload a font using the FontFace API
    */
   private loadFont(url: string): Promise<void> {
-    const fontFace = new FontFace("Minecraft", `url(${url})`);
+    const fontFace = new FontFace("BlockRift", `url(${url})`);
     return fontFace
       .load()
       .then((loaded) => {
