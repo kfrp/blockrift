@@ -543,7 +543,7 @@ POST / api / upvote;
 
 **Throttling**:
 
-- Maximum 10 updates/second (100ms interval)
+- Maximum 1 update/second (1000ms interval)
 - Only sent when position/rotation changes
 - Coordinates rounded to 2 decimals
 
@@ -627,7 +627,7 @@ POST / api / upvote;
 1. Update `connectedClients` map
 2. Included in next `broadcastPositionUpdates()` cycle
 
-**Client Throttling**: 100ms (10 updates/second)
+**Client Throttling**: 1000ms (1 update/second)
 
 ---
 
@@ -800,7 +800,7 @@ POST / api / upvote;
 
 ### `player-positions`
 
-**Frequency**: 10 times per second (100ms interval)
+**Frequency**: Once per second (1000ms interval)
 
 **Format**:
 

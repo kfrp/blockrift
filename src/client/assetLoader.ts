@@ -11,8 +11,8 @@ interface AssetConfig {
 export class AssetLoader {
   private readonly REQUIRED_ASSETS: AssetConfig[] = [
     { url: "/assets/menu2.png", type: "image" },
-    { url: "/assets/title5.png", type: "image" },
-    { url: "/assets/press.ttf", type: "font" },
+    { url: "/assets/title6.png", type: "image" },
+    { url: "/assets/ari-w9500.ttf", type: "font" },
   ];
 
   private readonly MAX_RETRIES = 3;

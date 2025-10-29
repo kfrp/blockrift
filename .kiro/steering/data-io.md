@@ -123,7 +123,7 @@ This unidirectional pattern ensures compatibility with Reddit's platform while e
 
 ### `/api/position`
 
-**Purpose**: Update player position (throttled to 100ms client-side)
+**Purpose**: Update player position (throttled to 1000ms client-side)
 
 **Request**:
 
@@ -267,7 +267,7 @@ const regionZ = Math.floor(chunkZ / REGION_SIZE);
 
 #### `player-positions`
 
-**Frequency**: 10 times per second (100ms interval)
+**Frequency**: Once per second (1000ms interval)
 
 **Format**:
 
@@ -369,7 +369,7 @@ Used for:
 
 **Position Updates**:
 
-- Throttled to 100ms intervals
+- Throttled to 1000ms intervals (1 second)
 - Only sent when position/rotation changes
 
 ### Conflict Resolution

@@ -97,7 +97,7 @@ function initializeGame(connectionData: any) {
       ui.setUsername("Connection Failed");
     });
 
-  // Position update interval (10 times per second)
+  // Position update interval (once per second)
   // Only send updates when position or rotation has changed
   let lastSentPosition = camera.position.clone();
   let lastSentRotation = {
@@ -134,7 +134,7 @@ function initializeGame(connectionData: any) {
       lastSentPosition.copy(currentPosition);
       lastSentRotation = currentRotation;
     }
-  }, 100);
+  }, 1000);
 
   // animation
   (function animate() {
