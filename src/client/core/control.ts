@@ -1,13 +1,13 @@
 /** Movement, Collision Detection, and Block Interaction **/
 import * as THREE from "three";
-import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls";
-import Player, { Mode } from "./player";
-import Terrain, { BlockType } from "./terrain";
+import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+import Player, { Mode } from "../player/player";
+import Terrain, { BlockType } from "../terrain";
 
-import Block from "./mesh/block";
-import Noise from "./terrain/noise";
-import Audio from "./ui/audio";
-import { isMobile } from "./utils";
+import Block from "../mesh/block";
+import Noise from "../terrain/noise";
+import Audio from "../ui/audio";
+import { isMobile } from "../utils/utils";
 
 // Enum representing the 6 possible collision directions in 3D space
 enum Side {
@@ -19,8 +19,8 @@ enum Side {
   up, // Positive Y direction (ceiling)
 }
 
-import MultiplayerManager from "./multiplayer";
-import { ChatUI } from "./ui/chatUI";
+import MultiplayerManager from "../state/multiplayer";
+import { ChatUI } from "../ui/chatUI";
 
 export default class Control {
   constructor(
@@ -466,8 +466,8 @@ export default class Control {
               new THREE.BoxGeometry(1, 1, 1),
               this.terrain.materials.get(
                 this.terrain.materialType[
-                  parseInt(BlockType[block.object.name as any])
-                ]
+                  parseInt(BlockType[block.object.name as unknown as number]!)
+                ]!
               )
             );
             mesh.position.set(position.x, position.y, position.z);
@@ -581,8 +581,8 @@ export default class Control {
               "holdingBlocks[holdingIndex]:",
               this.holdingBlocks[this.holdingIndex]
             );
-            this.terrain.blocks[this.holdingBlock].setMatrixAt(
-              this.terrain.getCount(this.holdingBlock),
+            this.terrain.blocks[this.holdingBlock]!.setMatrixAt(
+              this.terrain.getCount(this.holdingBlock)!,
               matrix
             );
             this.terrain.setCount(this.holdingBlock);
@@ -591,7 +591,7 @@ export default class Control {
             this.audio.playSound(this.holdingBlock);
 
             // Mark for update
-            this.terrain.blocks[this.holdingBlock].instanceMatrix.needsUpdate =
+            this.terrain.blocks[this.holdingBlock]!.instanceMatrix.needsUpdate =
               true;
 
             // Add to custom blocks list

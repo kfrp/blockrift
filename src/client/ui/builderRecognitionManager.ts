@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import Terrain from "./terrain";
-import { PlayerModeManager } from "./playerModeManager";
+import Terrain from "../terrain";
+import { PlayerModeManager } from "../player/playerModeManager";
 
 /**
  * BuilderInfo - Information about a builder in the current region

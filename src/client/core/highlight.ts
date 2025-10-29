@@ -1,7 +1,7 @@
 // [highlight.ts] - REFACTORED
 
 import * as THREE from "three";
-import Terrain from "./terrain";
+import Terrain from "../terrain";
 
 /**
  * BlockHighlight - Handles the visual highlight of the block under the crosshair. It raycasts directly against the actual, rendered terrain meshes.

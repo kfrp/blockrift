@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import Materials, { MaterialType } from "../mesh/materials";
 import Block from "../mesh/block";
-import Highlight from "../highlight";
+import Highlight from "../core/highlight";
 import Noise from "./noise";
 
 import Generator from "./worker?worker"; // Web Worker import
@@ -70,14 +70,15 @@ export default class Terrain {
 
       // Apply the generated instance matrices to each block mesh
       for (let i = 0; i < msg.data.arrays.length; i++) {
-        this.blocks[i].instanceMatrix = new THREE.InstancedBufferAttribute(
-          (this.blocks[i].instanceMatrix.array = msg.data.arrays[
+        if (!this.blocks[i]) continue;
+        this.blocks[i]!.instanceMatrix = new THREE.InstancedBufferAttribute(
+          (this.blocks[i]!.instanceMatrix.array = msg.data.arrays[
             i
           ] as THREE.TypedArray),
           16 // 16 floats per 4x4 matrix
         );
         // Set instance count for proper rendering and raycasting
-        this.blocks[i].count = this.blocksCount[i];
+        this.blocks[i]!.count = this.blocksCount[i]!;
       }
 
       // Mark all block meshes as needing updates
@@ -179,8 +180,11 @@ export default class Terrain {
    * Also updates the mesh's count property for rendering/raycasting
    */
   setCount = (type: BlockType) => {
+    if (!this.blocks[type]) return;
+    this.blocksCount[type] = this.blocksCount[type] || 0;
     this.blocksCount[type] = this.blocksCount[type] + 1;
     // Update instance count for raycasting to work properly
+
     this.blocks[type].count = this.blocksCount[type];
     // Recompute bounding sphere for frustum culling and raycasting
     this.blocks[type].computeBoundingSphere();
@@ -203,11 +207,11 @@ export default class Terrain {
     for (let i = 0; i < this.materialType.length; i++) {
       let block = new THREE.InstancedMesh(
         geometry,
-        this.materials.get(this.materialType[i]),
-        this.maxCount * this.blocksFactor[i] // Allocate based on expected frequency
+        this.materials.get(this.materialType[i]!),
+        this.maxCount * this.blocksFactor[i]! // Allocate based on expected frequency
       );
       // Name used for identifying block type during raycasting
-      block.name = BlockType[i];
+      block.name = BlockType[i]!;
       // Disable frustum culling for instanced meshes with dynamic instances
       block.frustumCulled = false;
       this.blocks.push(block);
@@ -224,8 +228,8 @@ export default class Terrain {
    */
   resetBlocks = () => {
     for (let i = 0; i < this.blocks.length; i++) {
-      this.blocks[i].instanceMatrix = new THREE.InstancedBufferAttribute(
-        new Float32Array(this.maxCount * this.blocksFactor[i] * 16),
+      this.blocks[i]!.instanceMatrix = new THREE.InstancedBufferAttribute(
+        new Float32Array(this.maxCount * this.blocksFactor[i]! * 16),
         16
       );
     }
@@ -370,7 +374,7 @@ export default class Terrain {
     this.buildBlock(new THREE.Vector3(x, y, z + 1), type); // Right
 
     // Update the mesh
-    this.blocks[type].instanceMatrix.needsUpdate = true;
+    this.blocks[type]!.instanceMatrix.needsUpdate = true;
   };
 
   /**
@@ -411,8 +415,8 @@ export default class Terrain {
     // Add instance to appropriate mesh
     const matrix = new THREE.Matrix4();
     matrix.setPosition(position);
-    this.blocks[type].setMatrixAt(this.getCount(type), matrix);
-    this.blocks[type].instanceMatrix.needsUpdate = true;
+    this.blocks[type]!.setMatrixAt(this.getCount(type)!, matrix);
+    this.blocks[type]!.instanceMatrix.needsUpdate = true;
     this.setCount(type);
   };
 

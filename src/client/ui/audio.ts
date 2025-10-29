@@ -31,7 +31,7 @@ import leaf1 from "../assets/sounds/leaf1.ogg";
 import leaf2 from "../assets/sounds/leaf2.ogg";
 import leaf3 from "../assets/sounds/leaf3.ogg";
 import leaf4 from "../assets/sounds/leaf4.ogg";
-import { isMobile } from "../utils";
+import { isMobile } from "../utils/utils";
 
 export default class Audio {
   constructor(camera: THREE.PerspectiveCamera) {

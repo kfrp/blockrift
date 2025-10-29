@@ -1,0 +1,9 @@
+export const CHAT_API = "/api/chat";
+export const MODIFICATIONS_API = "/api/modifications";
+export const CONNECT_API = "/api/connect";
+export const DISCONNECT_API = "/api/disconnect";
+export const POSITION_API = "/api/position";
+export const CHUNK_STATE_API = "/api/chunk-state";
+export const FRIENDS_ADD_API = "/api/friends/add";
+export const FRIENDS_REMOVE_API = "/api/friends/remove";
+export const UPVOTE_API = "/api/upvote";

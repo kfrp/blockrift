@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { UpvoteManager } from "./upvoteManager";
-import { PlayerModeManager } from "./playerModeManager";
+import { PlayerModeManager } from "../player/playerModeManager";
 
 // Mock localStorage for Node.js environment
 const localStorageMock = (() => {

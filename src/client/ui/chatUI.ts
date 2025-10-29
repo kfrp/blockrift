@@ -1,5 +1,5 @@
-import { ChatManager } from "../chatManager";
-import { PlayerModeManager } from "../playerModeManager";
+import { ChatManager } from "./chatManager";
+import { PlayerModeManager } from "../player/playerModeManager";
 
 /**
  * ChatUI - Manages chat user interface components

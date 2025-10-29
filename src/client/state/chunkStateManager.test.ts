@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { ChunkStateManager } from "./chunkStateManager";
-import Block from "./mesh/block";
-import type { BlockType } from "./terrain/index";
+import Block from "../mesh/block";
+import type { BlockType } from "../terrain/index";
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -251,7 +251,7 @@ describe("ChunkStateManager", () => {
   describe("Modification Batching", () => {
     beforeEach(() => {
       vi.useFakeTimers();
-      manager.setConnection(mockConnection as any, "TestPlayer", "default");
+      manager.setConnection(mockConnection as any, "TestPlayer");
     });
 
     afterEach(() => {
@@ -365,7 +365,7 @@ describe("ChunkStateManager", () => {
   describe("Offline Storage and Retrieval", () => {
     beforeEach(() => {
       vi.useFakeTimers();
-      manager.setConnection(mockConnection as any, "TestPlayer", "default");
+      manager.setConnection(mockConnection as any, "TestPlayer");
     });
 
     afterEach(() => {
@@ -612,7 +612,7 @@ describe("ChunkStateManager", () => {
 
   describe("Lifecycle Methods", () => {
     it("should set connection, username, and level", () => {
-      manager.setConnection(mockConnection as any, "TestPlayer", "world1");
+      manager.setConnection(mockConnection as any, "TestPlayer");
 
       // Verify by trying to update subscriptions (should not throw)
       expect(() => manager.updateSubscriptions(0, 0)).not.toThrow();
@@ -623,7 +623,7 @@ describe("ChunkStateManager", () => {
       manager.storeChunk(0, 0, []);
       manager.storeChunk(1, 1, []);
       manager.markPending([{ chunkX: 2, chunkZ: 2 }]);
-      manager.setConnection(mockConnection as any, "TestPlayer", "default");
+      manager.setConnection(mockConnection as any, "TestPlayer");
 
       // Clear state
       manager.clear();
@@ -640,7 +640,7 @@ describe("ChunkStateManager", () => {
     it("should clear batch timer on clear", () => {
       vi.useFakeTimers();
 
-      manager.setConnection(mockConnection as any, "TestPlayer", "default");
+      manager.setConnection(mockConnection as any, "TestPlayer");
       manager.addModification({ x: 1, y: 2, z: 3 }, 1, "place");
 
       // Clear before timer fires

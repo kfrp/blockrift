@@ -1,5 +1,5 @@
-import Block from "./mesh/block";
-import { RealtimeConnection, connectRealtime } from "./realtime";
+import Block from "../mesh/block";
+import { RealtimeConnection, connectRealtime } from "../realtime";
 
 /**
  * Represents a loaded chunk with its blocks and metadata
@@ -323,7 +323,7 @@ export class ChunkStateManager {
     // Convert Set back to array of region coordinates
     return Array.from(regions).map((key) => {
       const [regionX, regionZ] = key.split("_").map(Number);
-      return { regionX, regionZ };
+      return { regionX, regionZ } as { regionX: number; regionZ: number };
     });
   }
 
@@ -338,7 +338,7 @@ export class ChunkStateManager {
   async updateSubscriptions(
     playerChunkX: number,
     playerChunkZ: number,
-    onMessage: (data: any) => void
+    onMessage?: (data: any) => void
   ): Promise<void> {
     const requiredRegions = this.getRequiredRegions(playerChunkX, playerChunkZ);
     const requiredKeys = new Set(
@@ -376,7 +376,7 @@ export class ChunkStateManager {
           onDisconnect: (ch) => {
             logInfo(`ChunkStateManager: Disconnected from ${ch}`);
           },
-          onMessage,
+          onMessage: onMessage || (() => {}),
         });
 
         this.activeConnections.set(regionKey, connection);
@@ -457,7 +457,7 @@ export class ChunkStateManager {
     );
 
     try {
-      const response = await fetch("http://localhost:3000/api/modifications", {
+      const response = await fetch(window.ENDPOINTS.MODIFICATIONS_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -532,7 +532,7 @@ export class ChunkStateManager {
     );
 
     try {
-      const response = await fetch("http://localhost:3000/api/modifications", {
+      const response = await fetch(window.ENDPOINTS.MODIFICATIONS_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

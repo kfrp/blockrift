@@ -1,7 +1,7 @@
 /**
  * UpvoteManager - Manages upvote rate limiting and submission
  */
-import { PlayerModeManager } from "./playerModeManager";
+import { PlayerModeManager } from "../player/playerModeManager";
 
 /**
  * UpvoteRecord - Record of an upvote in localStorage
@@ -46,9 +46,11 @@ export class UpvoteManager {
     // Check cooldown (last upvote within 1 minute)
     if (records.length > 0) {
       const lastUpvote = records[records.length - 1];
-      const timeSinceLastUpvote = Date.now() - lastUpvote.timestamp;
+      const timeSinceLastUpvote = lastUpvote
+        ? Date.now() - lastUpvote.timestamp
+        : null;
 
-      if (timeSinceLastUpvote < this.COOLDOWN_MS) {
+      if (timeSinceLastUpvote && timeSinceLastUpvote < this.COOLDOWN_MS) {
         const remainingSeconds = Math.ceil(
           (this.COOLDOWN_MS - timeSinceLastUpvote) / 1000
         );
@@ -85,7 +87,7 @@ export class UpvoteManager {
     const check = this.canUpvote(builderUsername);
 
     if (!check.allowed) {
-      return { success: false, message: check.reason };
+      return { success: false, message: check.reason! };
     }
 
     const currentUsername = this.playerModeManager.getUsername();
@@ -101,7 +103,7 @@ export class UpvoteManager {
     );
 
     // Fire-and-forget server request
-    fetch("http://localhost:3000/api/upvote", {
+    fetch(window.ENDPOINTS.UPVOTE_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -174,11 +176,14 @@ export class UpvoteManager {
     if (records.length === 0) return 0;
 
     const lastUpvote = records[records.length - 1];
-    const timeSinceLastUpvote = Date.now() - lastUpvote.timestamp;
+    if (lastUpvote) {
+      const timeSinceLastUpvote = Date.now() - lastUpvote.timestamp;
 
-    if (timeSinceLastUpvote >= this.COOLDOWN_MS) return 0;
+      if (timeSinceLastUpvote >= this.COOLDOWN_MS) return 0;
 
-    return Math.ceil((this.COOLDOWN_MS - timeSinceLastUpvote) / 1000);
+      return Math.ceil((this.COOLDOWN_MS - timeSinceLastUpvote) / 1000);
+    }
+    return 0;
   }
 
   /**

@@ -5,6 +5,11 @@ export interface RealtimeConnection {
   disconnect: () => Promise<void>;
 }
 
+export interface Connection {
+  onConnect?: (channel: string) => void;
+  onDisconnect?: (channel: string) => void;
+  onMessage?: (data: any) => void;
+}
 interface ConnectRealtimeOptions {
   channel: string;
   onConnect?: (channel: string) => void;

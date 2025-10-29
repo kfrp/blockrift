@@ -1,5 +1,4 @@
-import { PlayerModeManager } from "./playerModeManager";
-
+import { PlayerModeManager } from "../player/playerModeManager";
 /**
  * ChatMessage interface
  */
@@ -23,7 +22,7 @@ export class ChatManager {
     onMessagesChanged?: () => void
   ) {
     this.playerModeManager = playerModeManager;
-    this.onMessagesChanged = onMessagesChanged;
+    this.onMessagesChanged = onMessagesChanged!;
   }
 
   /**
@@ -46,7 +45,7 @@ export class ChatManager {
     }
 
     // Send HTTP POST to /api/chat (fire-and-forget)
-    fetch("http://localhost:3000/api/chat", {
+    fetch(window.ENDPOINTS.CHAT_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

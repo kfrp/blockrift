@@ -10,8 +10,8 @@ import {
   calculateInitialChunks,
   CHUNK_SIZE,
   REGION_SIZE,
-} from "./server-utils";
-import type { BlockModificationMessage } from "./index";
+} from "../server-utils";
+import { BlockModificationMessage } from "../types";
 
 // Redis client for testing
 let redisStore: ReturnType<typeof createClient>;

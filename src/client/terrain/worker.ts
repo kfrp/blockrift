@@ -80,7 +80,7 @@ onmessage = (
       let block = new THREE.InstancedMesh(
         geometry,
         new THREE.MeshBasicMaterial(),
-        maxCount * blocksFactor[i] // Allocate based on expected frequency
+        maxCount * blocksFactor[i]! // Allocate based on expected frequency
       );
       blocks.push(block);
     }
@@ -107,8 +107,8 @@ onmessage = (
 
   // Reset instance matrices for all block types
   for (let i = 0; i < blocks.length; i++) {
-    blocks[i].instanceMatrix = new THREE.InstancedBufferAttribute(
-      new Float32Array(maxCount * blocksFactor[i] * 16),
+    blocks[i]!.instanceMatrix = new THREE.InstancedBufferAttribute(
+      new Float32Array(maxCount * blocksFactor[i]! * 16),
       16
     );
   }
@@ -155,16 +155,16 @@ onmessage = (
         // Stone region
         if (coalOffset > noise.coalThreshold) {
           // Coal ore within stone
-          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.coal]);
-          blocks[BlockType.coal].setMatrixAt(
-            blocksCount[BlockType.coal]++,
+          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.coal]!);
+          blocks[BlockType.coal]!.setMatrixAt(
+            blocksCount[BlockType.coal]!++,
             matrix
           );
         } else {
           // Regular stone
-          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.stone]);
-          blocks[BlockType.stone].setMatrixAt(
-            blocksCount[BlockType.stone]++,
+          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.stone]!);
+          blocks[BlockType.stone]!.setMatrixAt(
+            blocksCount[BlockType.stone]!++,
             matrix
           );
         }
@@ -172,16 +172,16 @@ onmessage = (
         // Non-stone region
         if (yOffset < -3) {
           // Below sea level: sand (beach/underwater)
-          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.sand]);
-          blocks[BlockType.sand].setMatrixAt(
-            blocksCount[BlockType.sand]++,
+          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.sand]!);
+          blocks[BlockType.sand]!.setMatrixAt(
+            blocksCount[BlockType.sand]!++,
             matrix
           );
         } else {
           // Above sea level: grass
-          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.grass]);
-          blocks[BlockType.grass].setMatrixAt(
-            blocksCount[BlockType.grass]++,
+          idMap.set(`${x}_${y + yOffset}_${z}`, blocksCount[BlockType.grass]!);
+          blocks[BlockType.grass]!.setMatrixAt(
+            blocksCount[BlockType.grass]!++,
             matrix
           );
         }
@@ -207,13 +207,13 @@ onmessage = (
         for (let i = 1; i <= noise.treeHeight; i++) {
           idMap.set(
             `${x}_${y + yOffset + i}_${z}`,
-            blocksCount[BlockType.tree]
+            blocksCount[BlockType.tree]!
           );
 
           matrix.setPosition(x, y + yOffset + i, z);
 
-          blocks[BlockType.tree].setMatrixAt(
-            blocksCount[BlockType.tree]++,
+          blocks[BlockType.tree]!.setMatrixAt(
+            blocksCount[BlockType.tree]!++,
             matrix
           );
         }
@@ -239,15 +239,15 @@ onmessage = (
               if (leafOffset > noise.leafThreshold) {
                 idMap.set(
                   `${x + i}_${y + yOffset + noise.treeHeight + j}_${z + k}`,
-                  blocksCount[BlockType.leaf]
+                  blocksCount[BlockType.leaf]!
                 );
                 matrix.setPosition(
                   x + i,
                   y + yOffset + noise.treeHeight + j,
                   z + k
                 );
-                blocks[BlockType.leaf].setMatrixAt(
-                  blocksCount[BlockType.leaf]++,
+                blocks[BlockType.leaf]!.setMatrixAt(
+                  blocksCount[BlockType.leaf]!++,
                   matrix
                 );
               }
@@ -271,12 +271,12 @@ onmessage = (
       if (block.placed) {
         // Player placed this block - add instance
         matrix.setPosition(block.x, block.y, block.z);
-        blocks[block.type].setMatrixAt(blocksCount[block.type]++, matrix);
+        blocks[block.type]!.setMatrixAt(blocksCount[block.type]!++, matrix);
       } else {
         // Player removed this block - zero out its matrix
         const id = idMap.get(`${block.x}_${block.y}_${block.z}`);
 
-        blocks[block.type].setMatrixAt(
+        blocks[block.type]!.setMatrixAt(
           id!,
           new THREE.Matrix4().set(
             0,

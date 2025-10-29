@@ -1,14 +1,14 @@
 /** Multiplayer Manager - Handles all multiplayer synchronization **/
 import * as THREE from "three";
-import Terrain, { BlockType } from "./terrain";
-import Block from "./mesh/block";
-import PlayerEntityRenderer from "./playerEntityRenderer";
+import Terrain, { BlockType } from "../terrain";
+import Block from "../mesh/block";
+import PlayerEntityRenderer from "../player/playerEntityRenderer";
 import { ChunkStateManager } from "./chunkStateManager";
-import { PlayerModeManager } from "./playerModeManager";
-import { BuilderRecognitionManager } from "./builderRecognitionManager";
-import { UpvoteManager } from "./upvoteManager";
-import { ChatManager } from "./chatManager";
-import { connectRealtime, type RealtimeConnection } from "./realtime";
+import { PlayerModeManager } from "../player/playerModeManager";
+import { BuilderRecognitionManager } from "../ui/builderRecognitionManager";
+import { UpvoteManager } from "../upvote/upvoteManager";
+import { ChatManager } from "../ui/chatManager";
+import { connectRealtime, type RealtimeConnection } from "../realtime";
 
 /**
  * Represents another player in the multiplayer world
@@ -111,7 +111,7 @@ export default class MultiplayerManager {
 
       // If no connection data provided, fetch it (backward compatibility)
       if (!data) {
-        const response = await fetch("http://localhost:3000/api/connect", {
+        const response = await fetch(window.ENDPOINTS.CONNECT_API, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ level }),
@@ -246,7 +246,7 @@ export default class MultiplayerManager {
 
     if (this.username) {
       try {
-        await fetch("http://localhost:3000/api/disconnect", {
+        await fetch(window.ENDPOINTS.DISCONNECT_API, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -436,12 +436,12 @@ export default class MultiplayerManager {
       }
     } else if (data.action === "place" && data.blockType !== null) {
       matrix.setPosition(position.x, position.y, position.z);
-      this.terrain.blocks[data.blockType].setMatrixAt(
-        this.terrain.getCount(data.blockType),
+      this.terrain.blocks[data.blockType]!.setMatrixAt(
+        this.terrain.getCount(data.blockType)!,
         matrix
       );
       this.terrain.setCount(data.blockType);
-      this.terrain.blocks[data.blockType].instanceMatrix.needsUpdate = true;
+      this.terrain.blocks[data.blockType]!.instanceMatrix.needsUpdate = true;
       this.terrain.customBlocks.push(
         new Block(
           position.x,
@@ -471,16 +471,16 @@ export default class MultiplayerManager {
     ) {
       const blockMesh = this.terrain.blocks[blockType];
       const matrix = new THREE.Matrix4();
-      for (let i = 0; i < blockMesh.count; i++) {
-        blockMesh.getMatrixAt(i, matrix);
+      for (let i = 0; i < blockMesh!.count; i++) {
+        blockMesh!.getMatrixAt(i, matrix);
         const blockPosition = new THREE.Vector3().setFromMatrixPosition(matrix);
         if (
           Math.round(blockPosition.x) === position.x &&
           Math.round(blockPosition.y) === position.y &&
           Math.round(blockPosition.z) === position.z
         ) {
-          blockMesh.setMatrixAt(i, new THREE.Matrix4().identity());
-          blockMesh.instanceMatrix.needsUpdate = true;
+          blockMesh!.setMatrixAt(i, new THREE.Matrix4().identity());
+          blockMesh!.instanceMatrix.needsUpdate = true;
           return blockType as BlockType;
         }
       }
@@ -635,7 +635,7 @@ export default class MultiplayerManager {
       rotation: { x: rotation.x, y: rotation.y },
     };
     try {
-      await fetch("http://localhost:3000/api/position", {
+      await fetch(window.ENDPOINTS.POSITION_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

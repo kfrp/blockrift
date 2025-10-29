@@ -1,11 +1,11 @@
 import Bag from "./bag";
 import Terrain from "../terrain";
-import Control from "../control";
+import Control from "../core/control";
 import Joystick from "./joystick";
-import { isMobile } from "../utils";
+import { isMobile } from "../utils/utils";
 import * as THREE from "three";
 import PlayerModeUI from "./playerModeUI";
-import type MultiplayerManager from "../multiplayer";
+import type MultiplayerManager from "../state/multiplayer";
 
 export default class UI {
   playerModeUI: PlayerModeUI | null = null;

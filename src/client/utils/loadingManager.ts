@@ -169,22 +169,23 @@ export class LoadingManager {
   private async connectToServer(): Promise<ConnectionData> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
+    let url = window.ENDPOINTS.CONNECT_API;
+    let body: { level?: string } = {};
     // Check for stored username in localStorage
-    const storedUsername = localStorage.getItem("username");
-    const level = this.getLevel();
+    if (window.DEVVIT_MODE === "local") {
+      const storedUsername = localStorage.getItem("username");
+      body = { level: this.getLevel() };
 
-    // Build URL with username query param if available
-    let url = "http://localhost:3000/api/connect";
-    if (storedUsername) {
-      url += `?username=${encodeURIComponent(storedUsername)}`;
+      // Build URL with username query param if available
+      if (storedUsername) {
+        url += `?username=${encodeURIComponent(storedUsername)}`;
+      }
     }
-
     try {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ level }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 
@@ -203,7 +204,8 @@ export class LoadingManager {
       }
 
       // Store username in localStorage for future connections
-      localStorage.setItem("username", data.username);
+      if (window.DEVVIT_MODE === "local")
+        localStorage.setItem("username", data.username);
 
       // Success
       this.setState(LoadingState.CONNECTED);

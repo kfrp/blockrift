@@ -6,17 +6,17 @@ import diamond from "../assets/block-icon/diamond.png";
 import quartz from "../assets/block-icon/quartz.png";
 import glass from "../assets/block-icon/glass.png";
 import coal from "../assets/block-icon/coal.png";
-import { isMobile } from "../utils";
+import { isMobile } from "../utils/utils";
 
 export default class Bag {
   constructor() {
     if (isMobile) return;
 
     this.bag.className = "bag";
-    this.items[0].classList.add("selected");
+    this.items[0]?.classList.add("selected");
 
     for (let i = 0; i < this.items.length; i++) {
-      this.bag.appendChild(this.items[i]);
+      this.bag.appendChild(this.items[i] as Node);
     }
     document.body.appendChild(this.bag);
 
@@ -26,11 +26,11 @@ export default class Bag {
       }
 
       for (let i = 0; i < this.items.length; i++) {
-        this.items[i].classList.remove("selected");
+        this.items[i]!.classList.remove("selected");
       }
 
       this.current = parseInt(e.key) - 1;
-      this.items[this.current].classList.add("selected");
+      this.items[this.current]!.classList.add("selected");
     });
 
     document.body.addEventListener("wheel", (e: WheelEvent) => {
@@ -47,9 +47,9 @@ export default class Bag {
           this.current < 0 && (this.current = 9);
         }
         for (let i = 0; i < this.items.length; i++) {
-          this.items[i].classList.remove("selected");
+          this.items[i]!.classList.remove("selected");
         }
-        this.items[this.current].classList.add("selected");
+        this.items[this.current]!.classList.add("selected");
       }
     });
   }
@@ -69,7 +69,7 @@ export default class Bag {
     if (this.icon[this.iconIndex]) {
       img.className = "icon";
       img.alt = "block";
-      img.src = this.icon[this.iconIndex++];
+      img.src = this.icon[this.iconIndex++]!;
       item.appendChild(img);
     }
 

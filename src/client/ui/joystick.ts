@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import Control from "../control";
-import { Mode } from "../player";
-import { htmlToDom } from "../utils";
+import Control from "../core/control";
+import { Mode } from "../player/player";
+import { htmlToDom } from "../utils/utils";
 import UI from "./joystick.html?raw";
 
 enum ActionKey {

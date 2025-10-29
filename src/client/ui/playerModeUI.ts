@@ -1,6 +1,6 @@
-import { PlayerModeManager } from "../playerModeManager";
-import { BuilderRecognitionManager } from "../builderRecognitionManager";
-import { UpvoteManager } from "../upvoteManager";
+import { PlayerModeManager } from "../player/playerModeManager";
+import { BuilderRecognitionManager } from "./builderRecognitionManager";
+import { UpvoteManager } from "../upvote/upvoteManager";
 
 /**
  * PlayerModeUI - Manages all UI components for player mode features

@@ -5,7 +5,7 @@
   "scripts": {
     "dev:client": "cd src/client && vite",
     "dev:server": "cd src/server && tsx index",
-    "build:client": "cd src/client && vite build",
+    "build:client": "cd src/client && vite build --emptyOutDir",
     "build:server": "cd src/server && vite build",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "build": "npm run build:client && npm run build:server",

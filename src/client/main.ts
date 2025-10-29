@@ -1,13 +1,38 @@
-import Core from "./core";
-import Control from "./control";
-import Player from "./player";
+import * as ENDPOINTS_IMPORT from "../shared/endpoints";
+
+declare global {
+  interface Window {
+    DEVVIT_MODE: "local" | "test";
+    ENDPOINTS: {
+      [K in keyof typeof ENDPOINTS_IMPORT]: string;
+    };
+  }
+}
+
+window.DEVVIT_MODE = "local";
+
+const ENDPOINTS = { ...ENDPOINTS_IMPORT };
+
+if (window.DEVVIT_MODE === "local") {
+  for (const key in ENDPOINTS) {
+    if (Object.prototype.hasOwnProperty.call(ENDPOINTS, key)) {
+      (ENDPOINTS as any)[key] =
+        "http://localhost:3000" + (ENDPOINTS as any)[key];
+    }
+  }
+}
+
+window.ENDPOINTS = ENDPOINTS;
+import Core from "./core/core";
+import Control from "./core/control";
+import Player from "./player/player";
 import Terrain from "./terrain";
 import UI from "./ui";
 import Audio from "./ui/audio";
-import MultiplayerManager from "./multiplayer";
-import { ChatManager } from "./chatManager";
+import MultiplayerManager from "./state/multiplayer";
+import { ChatManager } from "./ui/chatManager";
 import { ChatUI } from "./ui/chatUI";
-import { LoadingManager } from "./loadingManager";
+import { LoadingManager } from "./utils/loadingManager";
 import * as THREE from "three";
 
 // Initialize loading manager and start loading process

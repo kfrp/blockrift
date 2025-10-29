@@ -1,6 +1,6 @@
 /** PlayerEntityRenderer - Renders and animates voxel-based player characters **/
 import * as THREE from "three";
-import { Rotation } from "./multiplayer";
+import { Rotation } from "../state/multiplayer";
 
 /**
  * PlayerColors - Defines the colors for the Snoo-inspired alien character.
@@ -109,7 +109,7 @@ export default class PlayerEntityRenderer {
       0x00d8d6, // Aqua
       0xff6348, // Tomato
     ];
-    return pleasantColors[Math.floor(Math.random() * pleasantColors.length)];
+    return pleasantColors[Math.floor(Math.random() * pleasantColors.length)]!;
   }
 
   /**

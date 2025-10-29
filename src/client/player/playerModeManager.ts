@@ -1,5 +1,5 @@
 /** PlayerModeManager - Manages player mode state and capabilities */
-import Block from "./mesh/block";
+import Block from "../mesh/block";
 
 /**
  * Connection response from server
@@ -173,7 +173,7 @@ export class PlayerModeManager {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/friends/add", {
+      const response = await fetch(window.ENDPOINTS.FRIENDS_ADD_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -215,7 +215,7 @@ export class PlayerModeManager {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/friends/remove", {
+      const response = await fetch(window.ENDPOINTS.FRIENDS_REMOVE_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
