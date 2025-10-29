@@ -169,24 +169,59 @@
         z-index: 2;
         position: fixed;
         left: 50%;
-        top: 20%;
-        transform: translate(-50%, 0%);
+        top: 50%;
+        transform: translate(-50%, -50%);
 
-        width: 300px;
+        width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
         color: white;
-        background-color: #727272;
-        border-left: 2px solid #a4a4a4;
-        border-top: 2px solid #a4a4a4;
-        border-bottom: 2px solid #545655;
-        border-right: 2px solid #545655;
-        box-shadow: 0 0 0 2px black;
+        background-color: #2a2a2a;
+        border-left: 3px solid #17cd07;
+        border-top: 3px solid #17cd07;
+        border-bottom: 3px solid #004e00;
+        border-right: 3px solid #004e00;
+        box-shadow: 0 0 0 3px black, 0 0 30px rgba(23, 205, 7, 0.3);
 
-        padding: 0px 30px 0px 30px;
+        padding: 20px 30px 30px 30px;
 
         text-align: center;
         user-select: none;
-        text-align: left;
-        line-height: 1.8rem;
+      }
+
+      .features h2 {
+        color: #17cd07;
+        text-shadow: 0 0 10px rgba(23, 205, 7, 0.5);
+      }
+
+      .features h3 {
+        border-bottom: 1px solid #17cd07;
+        padding-bottom: 5px;
+      }
+
+      .features::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .features::-webkit-scrollbar-track {
+        background: #1a1a1a;
+      }
+
+      .features::-webkit-scrollbar-thumb {
+        background: #17cd07;
+        border-radius: 4px;
+      }
+
+      .features::-webkit-scrollbar-thumb:hover {
+        background: #1aed0a;
+      }
+      .features > div > div {
+        font-size: 1.5em;
+      }
+      .features > div > div b {
+        font-size: 1em;
+        padding-right: 0.5em;
+        text-decoration: underline;
       }
 
       .save-modal,
@@ -234,25 +269,52 @@
         z-index: 2;
         position: fixed;
         left: 50%;
-        top: 20%;
-        transform: translate(-50%, 0%);
+        top: 50%;
+        transform: translate(-50%, -50%);
 
-        width: 300px;
-        height: 370px;
+        width: 450px;
+        max-height: 80vh;
+        overflow-y: auto;
         color: white;
-        background-color: #727272;
-        border-left: 2px solid #a4a4a4;
-        border-top: 2px solid #a4a4a4;
-        border-bottom: 2px solid #545655;
-        border-right: 2px solid #545655;
-        box-shadow: 0 0 0 2px black;
+        background-color: #2a2a2a;
+        border-left: 3px solid #2c78b3;
+        border-top: 3px solid #2c78b3;
+        border-bottom: 3px solid #1a4d7a;
+        border-right: 3px solid #1a4d7a;
+        box-shadow: 0 0 0 3px black, 0 0 30px rgba(44, 120, 179, 0.3);
 
-        padding: 0px 30px 0px 30px;
+        padding: 20px 30px 30px 30px;
 
         text-align: center;
         user-select: none;
+      }
+
+      .settings h2 {
+        color: #2c78b3;
+        text-shadow: 0 0 10px rgba(44, 120, 179, 0.5);
+      }
+
+      .settings h3 {
         text-align: left;
-        line-height: 1.8rem;
+        border-bottom: 1px solid #2c78b3;
+        padding-bottom: 5px;
+      }
+
+      .settings::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .settings::-webkit-scrollbar-track {
+        background: #1a1a1a;
+      }
+
+      .settings::-webkit-scrollbar-thumb {
+        background: #2c78b3;
+        border-radius: 4px;
+      }
+
+      .settings::-webkit-scrollbar-thumb:hover {
+        background: #3d8fc4;
       }
 
       #distance-input,
@@ -1098,52 +1160,168 @@
       </div>
 
       <button id="play" class="button hidden">Play</button>
-      <button id="setting" class="button hidden">Settings</button>
       <button id="feature" class="button hidden">Guide</button>
+      <button id="setting" class="button hidden">Settings</button>
     </div>
 
     <div class="features hidden">
-      <p>
-        <b> Left-Click: </b> destroy block <br />
-        <b> Right-Click:</b> place block <br />
-        <b> Wheel / Number Key: </b>change block <br />
-        <b> WASD: </b>move <br />
-        <b> Space: </b>jump / fly up<br />
-        <b> Q:</b> toggle normal / dev mode <br />
-        <b> Shift:</b> sneaking / fly down <br />
-        <b> F: </b>full screen <br />
-        <b> E: </b>menu <br />
-      </p>
-      <button id="back" class="button">Back</button>
+      <h2
+        style="
+          text-align: center;
+          margin-top: 10px;
+          margin-bottom: 20px;
+          font-size: 1.5rem;
+        "
+      >
+        How to Play
+      </h2>
+
+      <div style="margin-bottom: 20px">
+        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
+          🎮 POV & Movement
+        </h3>
+        <div style="line-height: 2rem; padding-left: 10px">
+          <br /><b>Left-Click + Drag:</b> Look around<br />
+          <br /><b>WASD:</b> Move forward/back/left/right<br />
+          <br /><b>Space:</b> Jump (or fly up in flying mode)<br />
+          <br /><b>Shift:</b> Sneak (or fly down in flying mode)<br />
+          <br /><b>Q:</b> Toggle walking/flying mode<br />
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px">
+        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
+          🔨 Building
+        </h3>
+        <div style="line-height: 2rem; padding-left: 10px">
+          <br /><b>Shift + Left-Click:</b> Break blocks<br />
+          <br /><b>Right-Click:</b> Place blocks<br />
+          <br /><b>1-8 Keys:</b> Select block type<br />
+          <br /><b>Mouse Wheel:</b> Scroll through blocks<br />
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px">
+        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
+          👥 Multiplayer
+        </h3>
+        <div style="line-height: 2rem; padding-left: 10px">
+          <br /><b>C:</b> Open chat<br />
+          <br /><b>F:</b> Toggle friends list<br />
+          <br /><b>+ builder names:</b> Add/remove friends<br />
+          <br /><b>↑ Arrow:</b> Upvote builders<br />
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px">
+        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
+          ⚙️ Other
+        </h3>
+        <div style="line-height: 2rem; padding-left: 10px">
+          <br /><b>E:</b> Open/close menu<br />
+          <br /><b>F:</b> Toggle fullscreen<br />
+        </div>
+      </div>
+
+      <button id="back" class="button" style="margin-top: 10px">Back</button>
     </div>
 
     <div class="settings hidden">
-      <p id="distance">Render Distance: 3</p>
-      <input
-        type="range"
-        id="distance-input"
-        min="1"
-        max="8"
-        value="3"
-        step="1"
-      />
+      <h2
+        style="
+          text-align: center;
+          margin-top: 10px;
+          margin-bottom: 20px;
+          font-size: 1.5rem;
+        "
+      >
+        Settings
+      </h2>
+      <!--
+      <div style="margin-bottom: 25px">
+        <h3 style="font-size: 1.1rem; margin-bottom: 10px; color: #17cd07">
+          Graphics
+        </h3>
+        <div
+          style="
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+          "
+        >
+          <p id="distance" style="margin-bottom: 8px">Render Distance: 3</p>
+          <input
+            type="range"
+            id="distance-input"
+            min="1"
+            max="8"
+            value="3"
+            step="1"
+            style="width: 100%"
+          />
+          <p style="font-size: 0.85rem; color: #aaa; margin-top: 5px">
+            Higher values may impact performance
+          </p>
+        </div>
+      </div>
 
-      <p id="fov">Field of View: 70</p>
-      <input
-        type="range"
-        id="fov-input"
-        min="40"
-        max="100"
-        value="70"
-        step="1"
-      />
+      <div style="margin-bottom: 25px">
+        <h3 style="font-size: 1.1rem; margin-bottom: 10px; color: #17cd07">
+          Camera
+        </h3>
+        <div
+          style="
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+          "
+        >
+          <p id="fov" style="margin-bottom: 8px">Field of View: 70</p>
+          <input
+            type="range"
+            id="fov-input"
+            min="40"
+            max="100"
+            value="70"
+            step="1"
+            style="width: 100%"
+          />
+          <p style="font-size: 0.85rem; color: #aaa; margin-top: 5px">
+            Adjust your viewing angle
+          </p>
+        </div>
+      </div>-->
 
-      <p id="music">Music: On</p>
-      <input type="range" id="music-input" min="0" max="1" value="1" step="1" />
+      <div style="margin-bottom: 25px">
+        <h3 style="font-size: 1.1rem; margin-bottom: 10px; color: #17cd07">
+          Audio
+        </h3>
+        <div
+          style="
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+          "
+        >
+          <p id="music" style="margin-bottom: 8px">Music: On</p>
+          <input
+            type="range"
+            id="music-input"
+            min="0"
+            max="1"
+            value="1"
+            step="1"
+            style="width: 100%"
+          />
+          <p style="font-size: 0.85rem; color: #aaa; margin-top: 5px">
+            Toggle background music
+          </p>
+        </div>
+      </div>
 
-      <br />
-      <br />
-      <button id="setting-back" class="button">Apply</button>
+      <button id="setting-back" class="button" style="margin-top: 10px">
+        Apply & Close
+      </button>
     </div>
 
     <div class="save-modal hidden">Game Saved!</div>

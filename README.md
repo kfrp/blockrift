@@ -6,13 +6,23 @@ BlockRift is a browser-based Minecraft-inspired building game where you can crea
 
 The game features smooth 60 FPS gameplay powered by Three.js, real-time multiplayer synchronization via WebSocket, persistent world state stored in Redis, and an intuitive building system with 12 different block types. Whether you're building solo or collaborating with friends, BlockRift brings the classic voxel sandbox experience directly to Reddit.
 
-BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. The game works seamlessly in both standard browsers and Reddit's sandboxed iframe environment, automatically adapting controls for optimal gameplay (using middle mouse button for camera control when pointer lock is unavailable).
+BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. The game works seamlessly in both standard browsers and Reddit's sandboxed iframe environment, automatically adapting controls for optimal gameplay (using left-click drag for camera control when pointer lock is unavailable).
 
 ---
 
 ## 🎮 What is BlockRift?
 
-BlockRift brings the classic voxel sandbox experience directly to Reddit. Build structures, mine resources, and collaborate with friends in a persistent multiplayer world. The game features:
+BlockRift is a fully-featured voxel sandbox game that runs entirely within Reddit posts. It's a multiplayer building experience where you can:
+
+- **Build and destroy blocks** in an infinite 3D world with 12 different block types
+- **Collaborate with other players** in real-time - see them move, build, and chat
+- **Explore procedurally-generated terrain** with trees, underground caves, stone regions, and coal ore
+- **Make friends** to enable collaborative building permissions across all worlds
+- **Chat with other players** using the built-in chat system (press C)
+- **Switch between walking and flying modes** for different building styles
+- **Dig infinitely deep** - new blocks generate beneath removed ones until you hit bedrock
+
+The game features:
 
 - **Infinite procedurally-generated terrain** with realistic biomes, trees, and underground resources
 - **Real-time multiplayer** with position synchronization and collaborative building
@@ -84,7 +94,7 @@ Instead of creating individual meshes for each block (which would be thousands o
 
 ### 14. **Sandboxed Environment Support**
 
-BlockRift automatically detects when running in Reddit's sandboxed iframe environment (where pointer lock is unavailable) and seamlessly switches to alternative controls. In sandboxed mode, players simply move their mouse to look around instead of using pointer lock, ensuring the game works perfectly within Reddit posts without requiring special permissions or browser features.
+BlockRift automatically detects when running in Reddit's sandboxed iframe environment (where pointer lock is unavailable) and seamlessly switches to alternative controls. In sandboxed mode, players left-click and drag to look around instead of using pointer lock, ensuring the game works perfectly within Reddit posts without requiring special permissions or browser features. The game shows a helpful notification when you first activate the camera to explain the controls.
 
 ---
 
@@ -111,12 +121,12 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
 
 2. **Basic Controls (Desktop)**
 
-   **Standard Mode (Pointer Lock):**
+   **Standard Mode (Pointer Lock Available):**
 
    - **WASD** - Move forward/backward/left/right
    - **Mouse** - Look around (first-person camera)
    - **Space** - Jump (in walking mode) or fly up (in flying mode)
-   - **Left Click** - Destroy block (hold for continuous breaking)
+   - **Shift + Left Click** - Destroy block (hold for continuous breaking)
    - **Right Click** - Place block (hold for continuous placing)
    - **Mouse Wheel / Number Keys (1-8)** - Select block type from hotbar
    - **Q** - Toggle between walking mode and flying mode
@@ -126,12 +136,12 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
    - **F** - Toggle fullscreen
    - **Escape** - Close chat input or unlock pointer
 
-   **Reddit Mode (Sandboxed Environment):**
+   **Reddit Mode (Sandboxed Environment - No Pointer Lock):**
 
    - **WASD** - Move forward/backward/left/right
-   - **Mouse Movement** - Look around (camera control - just move your mouse)
+   - **Left Click + Drag** - Look around (camera control)
    - **Space** - Jump (in walking mode) or fly up (in flying mode)
-   - **Left Click** - Destroy block (hold for continuous breaking)
+   - **Shift + Left Click** - Destroy block (hold for continuous breaking)
    - **Right Click** - Place block (hold for continuous placing)
    - **Mouse Wheel / Number Keys (1-8)** - Select block type from hotbar
    - **Q** - Toggle between walking mode and flying mode
@@ -179,7 +189,7 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
 
 3. **Destroying Blocks**
    - Aim at a block with the crosshair
-   - Left-click to destroy it
+   - Hold Shift and left-click to destroy it
    - The block shrinks with an animation and disappears
    - **Permission System**:
      - You can always destroy blocks you placed
@@ -189,7 +199,7 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
    - **Bedrock** (bottom layer at y=0) cannot be destroyed by anyone
    - When you destroy a block, new blocks generate beneath it (infinite depth)
    - A sound effect plays based on the block type destroyed
-   - Hold left-click for continuous block breaking
+   - Hold Shift+left-click for continuous block breaking
 
 ### Multiplayer Features
 
@@ -281,35 +291,25 @@ BlockRift automatically detects when running in Reddit's sandboxed iframe enviro
 
 Access settings by pressing **E** (opens menu) and clicking "Settings":
 
-- **Render Distance** (1-8 chunks):
-  - Controls how far you can see
-  - 1 chunk = minimal view, best performance
-  - 8 chunks = maximum view, may reduce FPS
-  - Default: 3 chunks (balanced)
-  - Changes apply when you click "Apply"
-- **Field of View** (40-100):
-  - Adjusts camera perspective
-  - Lower values = zoomed in, narrow view
-  - Higher values = wide-angle, fish-eye effect
-  - Default: 70 (standard FPS view)
-  - Changes apply immediately
 - **Music** (On/Off):
   - Toggle background music
   - Music plays automatically when pointer is locked (game active)
   - Pauses when menu is open
+  - Changes apply when you click "Apply & Close"
 
 ### Tips for New Players
 
 - **Start small**: Build a simple structure to get familiar with controls before attempting large projects
 - **Use flying mode**: Press Q to toggle flying - it's much easier for building tall structures or exploring
-- **Reddit Mode**: If playing in a Reddit post, just move your mouse to look around (pointer lock isn't available in iframes)
+- **Reddit Mode**: If playing in a Reddit post, left-click and drag to look around (pointer lock isn't available in iframes)
+- **Breaking blocks**: Remember to hold Shift while left-clicking to break blocks (prevents accidental camera dragging)
 - **Make friends**: Add other builders as friends to collaborate on projects and modify each other's builds
 - **Explore**: The world is infinite - walk in any direction to discover new terrain, trees, and underground resources
 - **Check the builders list**: Click to expand and see who's online and what they're building in your region
 - **Dig deep**: Remove blocks to explore underground - new blocks generate beneath automatically until you hit bedrock
 - **Bedrock is unbreakable**: The bottom layer (y=0) prevents falling into the void - you can't break it
 - **Use the crosshair**: The white + in the center shows exactly where you'll place or break blocks
-- **Hold mouse buttons**: Hold left-click to continuously break blocks, hold right-click to continuously place
+- **Hold mouse buttons**: Hold Shift+left-click to continuously break blocks, hold right-click to continuously place
 - **Chat with others**: Press C to communicate with nearby players and coordinate builds
 - **Highlight to learn**: Click builder names to see their blocks highlighted in green - great for learning techniques
 - **Upvote good builds**: Show appreciation by upvoting builders whose creations you admire
