@@ -17,6 +17,12 @@ export default class Bag {
 
     for (let i = 0; i < this.items.length; i++) {
       this.bag.appendChild(this.items[i] as Node);
+
+      // Add click handler for each item
+      const index = i;
+      this.items[i]?.addEventListener("click", () => {
+        this.onItemClick(index);
+      });
     }
     document.body.appendChild(this.bag);
   }
@@ -25,6 +31,7 @@ export default class Bag {
   icon = [wood, glass, grass, stone, tree, diamond, quartz, coal];
   iconIndex = 0;
   y = 0;
+  onSelectCallback?: (index: number) => void;
 
   bag = document.createElement("div");
 
@@ -59,6 +66,22 @@ export default class Bag {
     this.current = index;
     if (this.items[this.current]) {
       this.items[this.current]!.classList.add("selected");
+    }
+  }
+
+  /**
+   * Set callback for when an item is clicked
+   */
+  setOnSelectCallback(callback: (index: number) => void) {
+    this.onSelectCallback = callback;
+  }
+
+  /**
+   * Handle item click
+   */
+  private onItemClick(index: number) {
+    if (this.onSelectCallback) {
+      this.onSelectCallback(index);
     }
   }
 }

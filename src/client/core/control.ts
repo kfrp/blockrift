@@ -704,13 +704,9 @@ export default class Control {
     ) {
       return;
     }
-    this.holdingIndex = parseInt(e.key) - 1; // Keys 1-8 map to indices 0-7
 
-    this.holdingBlock =
-      this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
-
-    // Update bag UI
-    this.bag?.updateSelection(this.holdingIndex);
+    // Use the selectBlock method for consistency
+    this.selectBlock(parseInt(e.key) - 1);
   };
 
   /**
@@ -739,11 +735,8 @@ export default class Control {
         this.holdingIndex < 0 && (this.holdingIndex = 9);
       }
 
-      this.holdingBlock =
-        this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
-
-      // Update bag UI
-      this.bag?.updateSelection(this.holdingIndex);
+      // Use the selectBlock method for consistency
+      this.selectBlock(this.holdingIndex);
     }
   };
 
@@ -1573,5 +1566,20 @@ export default class Control {
    */
   setBag(bag: Bag) {
     this.bag = bag;
+
+    // Set up callback for when bag items are clicked
+    bag.setOnSelectCallback((index: number) => {
+      this.selectBlock(index);
+    });
+  }
+
+  /**
+   * Select a block by index (used by both keyboard and bag clicks)
+   */
+  private selectBlock(index: number) {
+    this.holdingIndex = index;
+    this.holdingBlock =
+      this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
+    this.bag?.updateSelection(this.holdingIndex);
   }
 }
