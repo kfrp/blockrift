@@ -2,20 +2,15 @@
 
 **A multiplayer voxel sandbox game built with Three.js, running natively on Reddit's Devvit platform.**
 
-BlockRift is a browser-based Minecraft-inspired building game where you can create, destroy, and explore an infinite procedurally-generated world alongside other Reddit users in real-time. Play directly from Reddit posts with no downloads required - your Reddit username is your in-game identity.
+BlockRift is a browser-based multi-player sandbox game where you can create, destroy, and explore an infinite procedurally-generated world alongside other Reddit users in real-time. Play directly from Reddit posts with no downloads required - your Reddit username is your in-game identity.
 
-The game spawns you high above the terrain (at y=50) so you can survey the procedurally-generated landscape before descending to start building. You'll see trees with stripped oak log textures, grass plains with vibrant lime concrete powder texture on top, stone regions, coal ore deposits, and other players moving around as colored block characters with floating nametags above their heads.
-
-## 🎮 What is BlockRift?
-
-BlockRift is a fully-featured 3D voxel sandbox game that runs entirely within Reddit posts - no downloads, no external websites, just click "Play" and start building. It's a multiplayer building experience where you can:
+The game spawns you high above the terrain so you can survey the procedurally-generated landscape before descending to start building. You'll see flowering trees with stripped oak log textures, grass plains with vibrant lime concrete powder texture on top, stone regions, coal ore deposits, and other players moving around as snoo-inspired voxel characters with floating nametags above their heads.
 
 ### Core Gameplay
 
-- **Build and destroy blocks** in an infinite 3D world with 8 different block types in your hotbar (wood planks, glass, grass with lime concrete powder tops, stone, tree logs with stripped oak texture, diamond ore, quartz, coal ore)
-- **Explore procedurally-generated terrain** with trees featuring stripped oak log textures and flowering azalea leaves, underground caves, stone regions, coal ore deposits, sand in low-lying areas, and vibrant lime concrete powder texture covering grass surfaces
+- **Build and destroy blocks** in an infinite 3D world with 8 different block types in your hotbar (wood planks, glass, grass, stone, wood planks, diamond ore, quartz, coal ore and more)
+- **Explore procedurally-generated terrain**  
 - **Dig infinitely deep** - new blocks generate beneath removed ones until you hit bedrock at y=0 (unbreakable bottom layer)
-- **Switch between walking and flying modes** (press Q) - walking has realistic physics with gravity, jumping, and wall sliding; flying lets you move freely in any direction
 
 ### Multiplayer Features
 
@@ -26,39 +21,11 @@ BlockRift is a fully-featured 3D voxel sandbox game that runs entirely within Re
 - **Highlight builds** by clicking builder names to see all their blocks highlighted in green - great for learning building techniques
 - **Track online players** - see how many players are currently in your level and who's building in your region
 
-### Technical Excellence
+### Technical Features 
 
-The game features smooth 60 FPS gameplay powered by Three.js, real-time multiplayer synchronization via WebSocket, persistent world state stored in Redis, and an intuitive drag-based control system that works perfectly in Reddit's sandboxed iframe environment without requiring pointer lock.
-
-BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. Your Reddit username is your in-game identity, and your position coordinates (X, Z) are displayed in the top-right corner to help you navigate and share locations with other players.
-
-## 🎮 What is BlockRift?
-
-BlockRift is a fully-featured 3D voxel sandbox game that runs entirely within Reddit posts - no downloads, no external websites, just click "Play" and start building. It's a multiplayer building experience where you can:
-
-### Core Gameplay
-
-- **Build and destroy blocks** in an infinite 3D world with 8 different block types in your hotbar (wood planks, glass, grass with lime concrete powder tops, stone, tree logs with stripped oak texture, diamond ore, quartz, coal ore)
-- **Explore procedurally-generated terrain** with trees featuring stripped oak log textures and flowering azalea leaves, underground caves, stone regions, coal ore deposits, sand in low-lying areas, and vibrant lime concrete powder texture covering grass surfaces
-- **Dig infinitely deep** - new blocks generate beneath removed ones until you hit bedrock at y=0 (unbreakable bottom layer)
-- **Switch between walking and flying modes** (press Q) - walking has realistic physics with gravity, jumping, and wall sliding; flying lets you move freely in any direction
-
-### Multiplayer Features
-
-- **Collaborate with other players** in real-time - see them move, build, and chat as colored block characters with nametags floating above their heads
-- **Make friends** to enable collaborative building permissions across all worlds - friends can remove each other's blocks globally
-- **Chat with other players** using the built-in chat system (press C to open, type message, Enter to send)
-- **Upvote builders** to show appreciation for impressive creations - each player can upvote once per builder
-- **Highlight builds** by clicking builder names to see all their blocks highlighted in green - great for learning building techniques
-- **Track online players** - see how many players are currently in your level and who's building in your region
-
-### Technical Excellence
-
-The game features smooth 60 FPS gameplay powered by Three.js, real-time multiplayer synchronization via WebSocket, persistent world state stored in Redis, and an intuitive drag-based control system that works perfectly in Reddit's sandboxed iframe environment without requiring pointer lock.
+The game features smooth 60 FPS gameplay powered by three.js, real-time multiplayer synchronization via WebSocket, persistent world state stored in Redis, and an intuitive drag-based control system that works perfectly in Reddit's sandboxed iframe environment without requiring pointer lock.
 
 BlockRift combines the creative freedom of voxel building games with Reddit's social platform, enabling seamless multiplayer collaboration where your creations persist and can be explored by the entire community. Your Reddit username is your in-game identity, and your position coordinates (X, Z) are displayed in the top-right corner to help you navigate and share locations with other players.
-
----
 
 ---
 
@@ -141,7 +108,7 @@ The collision system uses a temporary instanced mesh (100 instances max) that's 
 
 **Special collision behaviors:**
 
-- **Sneaking mode**: Adds invisible collision blocks at edges to prevent falling off - you can't fall while sneaking, perfect for building on high structures
+- **Builder mode**: Adds invisible collision blocks at edges to prevent falling off - you can't fall while sneaking, perfect for building on high structures
 - **Jumping**: Temporarily adjusts downward collision distance during jump start to prevent false ground detection
 - **Wall sliding**: Complex angle-based logic (over 200 lines of code) allows smooth sliding along walls when moving at angles - calculates camera direction and applies partial movement perpendicular to walls
 - **Procedural integration**: Checks both procedurally generated terrain and custom placed/removed blocks
@@ -272,20 +239,15 @@ Press C to open the chat input and communicate with other players in your level.
    - **WASD** - Move forward/backward/left/right
      - Forward/backward velocity: `velocity.x` (positive = forward, negative = backward)
      - Left/right velocity: `velocity.z` (positive = right, negative = left)
-     - Movement speed: 6.612 units/second (walking), 21.78 units/second (flying), 2.55 units/second (sneaking)
-   - **Space** - Jump (in walking mode) or fly up (in flying mode)
+     - Movement speed: 6.612 units/second (walking), 2.55 units/second (builder mode)
+   - **Space** - Jump
      - Jump: applies upward velocity of 8 units/second
      - Hold Space for continuous jumping (10ms interval)
-     - Flying: adds player.speed to vertical velocity continuously
-   - **Shift** - Sneak (walking mode) or fly down (flying mode)
-     - Sneak: slower movement (2.55 units/second), prevents falling off edges
+   - **Shift** - Builder mode
+     - Builder: slower movement (2.55 units/second), prevents falling off edges
      - Camera lowers by 0.2 units for visual feedback
-     - Cannot jump while sneaking
-     - Flying: subtracts player.speed from vertical velocity
-   - **Q** - Toggle between walking mode and flying mode
-     - Walking: realistic physics with gravity (25 units/s² acceleration, 38.4 units/s terminal velocity)
-     - Flying: no gravity, free movement in all directions
-     - Velocity resets when changing modes
+     - Cannot jump in builder mode
+
 
    **Building:**
 
@@ -446,32 +408,6 @@ Press C to open the chat input and communicate with other players in your level.
      - "Cannot remove this block - only the builder or their friends can remove it"
    - Notifications slide in from the right with smooth animations
 
-### Game Modes
-
-1. **Walking Mode** (Default)
-
-   - Realistic physics with gravity (25 units/second² acceleration, terminal velocity capped at 38.4 units/second)
-   - You fall when not on solid ground
-   - **Jump** with Space (applies upward velocity of 8 units/second, hold for continuous jumping at 10ms intervals)
-   - **Sneak** with Shift:
-     - Slower movement speed (Speed.sneaking = 2.55 units/second vs Speed.walking = 6.612 units/second)
-     - Prevents falling off edges (invisible collision blocks added at edges)
-     - Camera lowers by 0.2 units for visual feedback
-     - Cannot jump while sneaking (prevents accidental falls)
-   - Collisions with blocks prevent movement through walls
-   - **Wall sliding**: When hitting walls at an angle, you slide along them smoothly rather than stopping (complex angle-based calculations with over 200 lines of collision logic)
-   - **Safety net**: If you fall below y=-100, you're teleported back to y=60 automatically
-
-2. **Flying Mode** (Press Q to toggle)
-   - No gravity - fly freely in any direction
-   - **Space** to fly up continuously (adds player.speed to vertical velocity)
-   - **Shift** to fly down continuously (subtracts player.speed from vertical velocity)
-   - Release keys to stop vertical movement (velocity set to 0)
-   - Perfect for building tall structures or exploring from above
-   - WASD still controls horizontal movement (Speed.flying = 21.78 units/second)
-   - No collision detection in flying mode (you can pass through blocks freely)
-   - Camera position updates directly without physics calculations
-
 ### Settings
 
 Access settings by pressing **E** (opens menu) and clicking "Settings":
@@ -490,14 +426,6 @@ Access the in-game guide by clicking "Guide" from the main menu. The guide inclu
 - **Building**: Block placement and destruction controls
 - **Multiplayer**: Chat, friends list, and builder interaction
 - **Other**: Menu and fullscreen controls
-
-### Audio
-
-The game features immersive audio:
-
-- **Background Music**: Atmospheric music plays during gameplay (toggle in settings)
-- **Sound Effects**: Block placement and destruction sounds
-- **Spatial Audio**: Sounds are positioned in 3D space relative to the camera
 
 ### UI Elements
 
@@ -566,25 +494,8 @@ The game features immersive audio:
 - **Smooth wall sliding**: When you hit walls at an angle, the collision system lets you slide along them naturally using complex angle-based calculations (over 200 lines of collision logic)
 - **Expand builders list**: The builders list starts collapsed - click the header to expand and see all builders in your region with friend/upvote buttons
 - **Safety net**: If you somehow fall below y=-100, you'll be teleported back to y=60 automatically (safety check in control.ts update loop)
-- **Sneak for precision**: Use Shift to enter sneak mode (Speed.sneaking = 2.55 units/second) - you'll move slower but won't fall off edges (invisible collision blocks added at edges)
+- **Builder mode for precision**: Use Shift to enter sneak mode (Speed.sneaking = 2.55 units/second) - you'll move slower but won't fall off edges (invisible collision blocks added at edges)
 
-### Viewer Mode
-
-If you're already playing on another device, new connections enter **Viewer Mode**:
-
-- A red notification appears at the top of the screen: "⚠️ Viewer Mode - You are already playing from another device. Block modifications are disabled."
-- You can see the world and other players moving around
-- You can move and look around freely
-- **Restrictions**:
-  - Cannot place or remove blocks (attempts show warning)
-  - Cannot send chat messages (C key disabled)
-  - Cannot modify the world in any way
-  - Position updates are not sent to server
-- Your username label shows "VIEWER | username" in red
-- The builders list still works - you can see who's building and player count
-- The notification hides when you enter gameplay (pointer locked) and reappears in menu
-- **To regain full control**: Close the other session/device where you're playing
-- This prevents accidental conflicts and data loss from multi-device usage
 
 ### Understanding the World
 
