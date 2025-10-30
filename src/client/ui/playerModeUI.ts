@@ -56,7 +56,7 @@ export default class PlayerModeUI {
                 <div class="players-online">Players Online: 0</div>
 <div class="builders-list-header">
         <div class="builders-header-info">
-          <span class="builders-count">Builders: 0</span>
+          <span class="builders-count">Highlights: 0</span>
         </div>
         <span class="builders-toggle" style="opacity:0.2">▼</span>
       </div>

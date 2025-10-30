@@ -69,8 +69,8 @@
         font-family: BlockRift, Avenir, Helvetica, Arial, sans-serif;
         font-size: 1.2rem;
         color: white;
-        background-color: #2c78b3;
         cursor: pointer;
+        background-color: #2c78b3;
         border-left: 2px solid #a4a4a4;
         border-top: 2px solid #a4a4a4;
         border-bottom: 2px solid #545655;
@@ -177,7 +177,10 @@
         z-index: 10;
         pointer-events: none;
       }
-
+      .guide-content b {
+        color: #17d707;
+        text-shadow: 0 0 10px rgba(13, 105, 7, 0.5);
+      }
       .hidden {
         display: none;
       }
@@ -190,8 +193,9 @@
         transform: translate(-50%, -50%);
 
         width: 500px;
-        max-height: 80vh;
+        height: 400px;
         overflow-y: auto;
+        overflow-x: hidden;
         color: white;
         background-color: #2a2a2a;
         border-left: 3px solid #17cd07;
@@ -216,29 +220,65 @@
         padding-bottom: 5px;
       }
 
+      .guide-section {
+        border: 2px solid #17cd07;
+        background-color: rgba(0, 0, 0, 0.3);
+      }
+
+      .guide-header {
+        padding: 12px 15px;
+        background-color: rgba(23, 205, 7, 0.2);
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 1.2rem;
+        color: #17cd07;
+        user-select: none;
+      }
+
+      .guide-header:hover {
+        background-color: rgba(23, 205, 7, 0.3);
+      }
+
+      .guide-toggle {
+        font-size: 1.5rem;
+        font-weight: bold;
+        min-width: 20px;
+        text-align: center;
+      }
+
+      .guide-content {
+        background-color: rgba(0, 0, 0, 0.2);
+        padding-bottom: 1.5em;
+      }
+
       .features::-webkit-scrollbar {
-        width: 8px;
+        width: 12px;
       }
 
       .features::-webkit-scrollbar-track {
         background: #1a1a1a;
+        border-left: 2px solid #004e00;
+        border-right: 2px solid #17cd07;
       }
 
       .features::-webkit-scrollbar-thumb {
-        background: #17cd07;
-        border-radius: 4px;
+        background: #727272;
+        border-left: 2px solid #a4a4a4;
+        border-top: 2px solid #a4a4a4;
+        border-bottom: 2px solid #545655;
+        border-right: 2px solid #545655;
+        box-shadow: 0 0 0 1px black;
       }
 
       .features::-webkit-scrollbar-thumb:hover {
-        background: #1aed0a;
-      }
-      .features > div > div {
-        font-size: 1.5em;
-      }
-      .features > div > div b {
-        font-size: 1em;
-        padding-right: 0.5em;
-        text-decoration: underline;
+        background: #218306;
+        border-left: 2px solid #17cd07;
+        border-top: 2px solid #17cd07;
+        border-bottom: 2px solid #004e00;
+        border-right: 2px solid #004e00;
+        box-shadow: 0 0 0 1px white;
       }
 
       .save-modal,
@@ -1180,7 +1220,7 @@
       </div>
 
       <button id="play" class="button hidden">Play</button>
-      <button id="feature" class="button hidden">Guide</button>
+      <button id="feature" class="button hidden">How To Play</button>
       <button id="setting" class="button hidden">Settings</button>
     </div>
 
@@ -1196,57 +1236,68 @@
         How to Play
       </h2>
 
-      <div style="margin-bottom: 20px">
-        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
-          🎮 Camera & Movement
-        </h3>
-        <div style="line-height: 2rem; padding-left: 10px">
-          <br /><b>Left-Click + Drag:</b> Look around<br />
-          <br /><b>WASD:</b> Move forward/back/left/right<br />
-          <br /><b>Space:</b> Jump (or fly up in flying mode)<br />
-          <br /><b>Shift:</b> Sneak mode (prevents falling off edges, or fly
-          down)<br />
-          <br /><b>Q:</b> Toggle walking/flying mode<br />
+      <div class="guide-section" style="margin-bottom: 10px">
+        <div class="guide-header" data-section="camera">
+          <span>🎮 POV & Movement</span>
+          <span class="guide-toggle">+</span>
+        </div>
+        <div class="guide-content hidden" id="guide-camera">
+          <div style="line-height: 2rem; padding: 15px 10px">
+            <br /><b>Left-Click + Drag:</b> Look around<br />
+            <br /><b>WASD:</b> Move forward/back/left/right<br />
+            <br /><b>Space:</b> Jump up<br />
+            <br /><b>Shift:</b> Builder mode (prevents falling off edges)<br />
+          </div>
         </div>
       </div>
 
-      <div style="margin-bottom: 20px">
-        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
-          🔨 Building
-        </h3>
-        <div style="line-height: 2rem; padding-left: 10px">
-          <br /><b>Left-Click:</b> Break blocks<br />
-          <br /><b>Right-Click:</b> Place blocks<br />
-          <br /><b>1-8 Keys:</b> Select block type<br />
-          <br /><b>Mouse Wheel:</b> Scroll through blocks<br />
-          <br /><b>Shift (while moving):</b> Sneak mode - prevents falling off
-          edges<br />
+      <div class="guide-section" style="margin-bottom: 10px">
+        <div class="guide-header" data-section="building">
+          <span>🔨 Building</span>
+          <span class="guide-toggle">+</span>
+        </div>
+        <div class="guide-content hidden" id="guide-building">
+          <div style="line-height: 2rem; padding: 15px 10px">
+            <br /><b>Left-Click:</b> Break blocks<br />
+            <br /><b>Right-Click:</b> Place blocks<br />
+            <br /><b>1-8 Keys:</b> Select block type<br />
+            <br /><b>Mouse Wheel:</b> Scroll through blocks<br />
+            <br /><b>Shift (while moving):</b> Builder mode - prevents falling
+            off edges<br />
+          </div>
         </div>
       </div>
 
-      <div style="margin-bottom: 20px">
-        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
-          👥 Multiplayer
-        </h3>
-        <div style="line-height: 2rem; padding-left: 10px">
-          <br /><b>C:</b> Open chat<br />
-          <br /><b>F:</b> Toggle friends list<br />
-          <br /><b>+ builder names:</b> Add/remove friends<br />
-          <br /><b>↑ Arrow:</b> Upvote builders<br />
+      <div class="guide-section" style="margin-bottom: 10px">
+        <div class="guide-header" data-section="multiplayer">
+          <span>👥 Multiplayer</span>
+          <span class="guide-toggle">+</span>
+        </div>
+        <div class="guide-content hidden" id="guide-multiplayer">
+          <div style="line-height: 2rem; padding: 15px 10px">
+            <br /><b>C:</b> Open chat<br />
+            <br /><b>F:</b> Toggle friends list<br />
+            <br /><b>Click username:</b> Highlight their blocks<br />
+            <br /><b>+ button:</b> Add/remove friends<br />
+            <br /><b>↑ Arrow:</b> Upvote builders<br />
+          </div>
         </div>
       </div>
 
-      <div style="margin-bottom: 20px">
-        <h3 style="font-size: 1.2rem; margin-bottom: 10px; color: #17cd07">
-          ⚙️ Other
-        </h3>
-        <div style="line-height: 2rem; padding-left: 10px">
-          <br /><b>E:</b> Open/close menu<br />
-          <br /><b>F:</b> Toggle fullscreen<br />
+      <div class="guide-section" style="margin-bottom: 10px">
+        <div class="guide-header" data-section="other">
+          <span>⚙️ Other</span>
+          <span class="guide-toggle">+</span>
+        </div>
+        <div class="guide-content hidden" id="guide-other">
+          <div style="line-height: 2rem; padding: 15px 10px">
+            <br /><b>E or Escape:</b> Pause/resume game<br />
+            <br /><b>F:</b> Toggle fullscreen<br />
+          </div>
         </div>
       </div>
 
-      <button id="back" class="button" style="margin-top: 10px">Back</button>
+      <button id="back" class="button" style="margin-top: 20px">Back</button>
     </div>
 
     <div class="settings hidden">

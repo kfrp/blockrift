@@ -54,6 +54,9 @@ export default class UI {
       this.features?.classList.add("hidden");
     });
 
+    // guide accordion functionality
+    this.initGuideAccordion();
+
     // setting
     this.setting?.addEventListener("click", () => {
       this.settings?.classList.remove("hidden");
@@ -107,8 +110,14 @@ export default class UI {
 
     // menu and fullscreen
     document.body.addEventListener("keydown", (e: KeyboardEvent) => {
-      // menu
-      if (e.key === "e" || e.key === "E") {
+      // Don't open menu if chat is active (chat handles Escape itself)
+      const chatActive = control.chatUI.isInputActive();
+
+      // menu - E key or Escape key
+      if (
+        (e.key === "e" || e.key === "E" || e.key === "Escape") &&
+        !chatActive
+      ) {
         if (control.cameraController.isActive) {
           !isMobile && this.deactivateCamera(control);
         }
@@ -223,7 +232,8 @@ export default class UI {
     this.menu?.classList.remove("start");
     this.play && (this.play.innerHTML = "Resume");
     this.crossHair.classList.remove("hidden");
-    this.feature?.classList.add("hidden");
+    // Don't hide the Guide button anymore - keep it visible in pause menu
+    // this.feature?.classList.add("hidden");
 
     // Hide the big viewer mode notification when entering gameplay
     if (this.playerModeUI) {
@@ -232,9 +242,8 @@ export default class UI {
   };
 
   onPause = () => {
-    /*    this.menu?.classList.remove("hidden");
+    this.menu?.classList.remove("hidden");
     this.crossHair.classList.add("hidden");
-    this.save && (this.save.innerHTML = "Save and Exit");*/
 
     // Show the big viewer mode notification when returning to menu
     if (this.playerModeUI && this.playerModeUI.isViewerMode()) {
@@ -363,5 +372,44 @@ export default class UI {
    */
   getPlayerModeUI = (): PlayerModeUI | null => {
     return this.playerModeUI;
+  };
+
+  /**
+   * Initialize guide accordion functionality
+   */
+  initGuideAccordion = () => {
+    const guideHeaders = document.querySelectorAll(".guide-header");
+
+    guideHeaders.forEach((header) => {
+      header.addEventListener("click", () => {
+        const section = header.getAttribute("data-section");
+        const content = document.getElementById(`guide-${section}`);
+        const toggle = header.querySelector(".guide-toggle");
+
+        if (content && toggle) {
+          const isCurrentlyHidden = content.classList.contains("hidden");
+
+          // Close all sections first
+          guideHeaders.forEach((otherHeader) => {
+            const otherSection = otherHeader.getAttribute("data-section");
+            const otherContent = document.getElementById(
+              `guide-${otherSection}`
+            );
+            const otherToggle = otherHeader.querySelector(".guide-toggle");
+
+            if (otherContent && otherToggle) {
+              otherContent.classList.add("hidden");
+              otherToggle.textContent = "+";
+            }
+          });
+
+          // If the clicked section was hidden, open it
+          if (isCurrentlyHidden) {
+            content.classList.remove("hidden");
+            toggle.textContent = "−";
+          }
+        }
+      });
+    });
   };
 }
