@@ -19,41 +19,8 @@ export default class Bag {
       this.bag.appendChild(this.items[i] as Node);
     }
     document.body.appendChild(this.bag);
-
-    document.body.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (isNaN(parseInt(e.key)) || e.key === "0" || parseInt(e.key) > 8) {
-        return;
-      }
-
-      for (let i = 0; i < this.items.length; i++) {
-        this.items[i]!.classList.remove("selected");
-      }
-
-      this.current = parseInt(e.key) - 1;
-      this.items[this.current]!.classList.add("selected");
-    });
-
-    document.body.addEventListener("wheel", (e: WheelEvent) => {
-      if (!this.wheelGap) {
-        this.wheelGap = true;
-        setTimeout(() => {
-          this.wheelGap = false;
-        }, 100);
-        if (e.deltaY > 0) {
-          this.current++;
-          this.current > 9 && (this.current = 0);
-        } else if (e.deltaY < 0) {
-          this.current--;
-          this.current < 0 && (this.current = 9);
-        }
-        for (let i = 0; i < this.items.length; i++) {
-          this.items[i]!.classList.remove("selected");
-        }
-        this.items[this.current]!.classList.add("selected");
-      }
-    });
   }
-  wheelGap = false;
+
   current = 0;
   icon = [wood, glass, grass, stone, tree, diamond, quartz, coal];
   iconIndex = 0;
@@ -75,4 +42,23 @@ export default class Bag {
 
     return item;
   });
+
+  /**
+   * Update the selected item in the bag UI
+   * Called by Control class when holdingIndex changes
+   */
+  updateSelection(index: number) {
+    if (isMobile) return;
+
+    // Remove selection from all items
+    for (let i = 0; i < this.items.length; i++) {
+      this.items[i]!.classList.remove("selected");
+    }
+
+    // Add selection to the new index
+    this.current = index;
+    if (this.items[this.current]) {
+      this.items[this.current]!.classList.add("selected");
+    }
+  }
 }

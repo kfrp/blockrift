@@ -195,7 +195,6 @@ export class LoadingManager {
       }
 
       const data: ConnectionData = await response.json();
-      console.log(data);
       // Check for username in response
       if (!data.username) {
         this.setState(LoadingState.ERROR_AUTH);

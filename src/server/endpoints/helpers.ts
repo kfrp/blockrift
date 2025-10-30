@@ -169,7 +169,7 @@ export async function getOrCreatePlayerData(
   // Type assertion for Redis hash result
   const hashData = data as unknown as Record<string, string>;
 
-  // Parse lastKnownPosition from JSON string
+  // Parse lastKnownPosition from JSON string (legacy field - no longer used for spawning)
   let lastKnownPosition: Position | null = null;
   if (hashData.lastKnownPosition && hashData.lastKnownPosition !== "") {
     try {

@@ -53,9 +53,9 @@ export default class PlayerModeUI {
     container.className = "builders-list collapsed";
 
     container.innerHTML = `
-      <div class="builders-list-header">
+                <div class="players-online">Players Online: 0</div>
+<div class="builders-list-header">
         <div class="builders-header-info">
-          <span class="players-online">Players Online: 0</span>
           <span class="builders-count">Builders: 0</span>
         </div>
         <span class="builders-toggle" style="opacity:0.2">▼</span>
@@ -260,7 +260,7 @@ export default class PlayerModeUI {
         }
 
         return `
-        <div class="builder-item ${highlightClass}">
+        <div class="builder-item ${highlightClass}" title="click to highlight builder's work">
           ${friendButton}
           <span class="builder-name" data-username="${builder.username}">
             ${builder.username}

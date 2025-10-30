@@ -264,6 +264,10 @@ app.post(DISCONNECT_API, async (_req, res) => {
     // Remove from active players set
     await removeActivePlayer(username, level);
 
+    // Remove from level-scoped position hash
+    const levelPositionKey = `positions:${level}`;
+    await redis.hDel(levelPositionKey, [username]);
+
     // Remove client from connected clients
     connectedClients.delete(username);
 

@@ -26,6 +26,9 @@ export class ChunkBasedPositionManager {
   private username: string;
   private level: string;
   private initialized = false;
+  private debounceTimer: number | null = null;
+  private lastPosition: Vector3 | null = null;
+  private lastRotation: { x: number; y: number } | null = null;
 
   constructor(username: string, level: string) {
     this.username = username;
@@ -34,13 +37,13 @@ export class ChunkBasedPositionManager {
 
   /**
    * Check if position update should be sent
-   * Only sends when chunk changes
+   * Sends when chunk changes OR after 500ms of no movement
    */
   checkPosition(position: Vector3, rotation: { x: number; y: number }): void {
     const chunkX = Math.floor(position.x / CHUNK_SIZE);
     const chunkZ = Math.floor(position.z / CHUNK_SIZE);
 
-    // Send on first call or when chunk changes
+    // Send immediately on first call or when chunk changes
     if (
       !this.initialized ||
       chunkX !== this.lastChunk.x ||
@@ -49,6 +52,29 @@ export class ChunkBasedPositionManager {
       this.sendPosition(position, rotation);
       this.lastChunk = { x: chunkX, z: chunkZ };
       this.initialized = true;
+
+      // Clear any pending debounced update
+      if (this.debounceTimer !== null) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+      }
+    } else {
+      // Within same chunk - debounce the update
+      this.lastPosition = position;
+      this.lastRotation = rotation;
+
+      // Clear existing timer
+      if (this.debounceTimer !== null) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      // Set new timer - send after 500ms of no movement
+      this.debounceTimer = window.setTimeout(() => {
+        if (this.lastPosition && this.lastRotation) {
+          this.sendPosition(this.lastPosition, this.lastRotation);
+        }
+        this.debounceTimer = null;
+      }, 500);
     }
   }
 
@@ -92,6 +118,21 @@ export class ChunkBasedPositionManager {
    * Force send position (for disconnect, etc.)
    */
   forceSend(position: Vector3, rotation: { x: number; y: number }): void {
+    // Clear any pending debounced update
+    if (this.debounceTimer !== null) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
     this.sendPosition(position, rotation);
+  }
+
+  /**
+   * Cleanup timers
+   */
+  destroy(): void {
+    if (this.debounceTimer !== null) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
   }
 }

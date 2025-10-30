@@ -14,6 +14,9 @@ export default class UI {
     this.bag = new Bag();
     this.joystick = new Joystick(control);
 
+    // Connect bag to control for UI updates
+    control.setBag(this.bag);
+
     this.crossHair.className = "cross-hair";
     this.crossHair.innerHTML = "+";
     document.body.appendChild(this.crossHair);

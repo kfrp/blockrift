@@ -55,6 +55,8 @@ class CameraController {
   }
 }
 
+import type Bag from "../ui/bag";
+
 export default class Control {
   constructor(
     scene: THREE.Scene,
@@ -109,6 +111,7 @@ export default class Control {
   audio: Audio;
   multiplayer: MultiplayerManager;
   chatUI: ChatUI;
+  bag: Bag | null = null;
   // Current velocity in 3D space (x=forward/back, y=up/down, z=left/right)
   velocity = new THREE.Vector3(0, 0, 0);
 
@@ -171,9 +174,7 @@ export default class Control {
   holdingIndex = 0; // Current hotbar slot (0-9)
   wheelGap = false; // Debounce flag for mouse wheel
   clickInterval?: ReturnType<typeof setInterval>; // For continuous block breaking
-  jumpInterval?: ReturnType<typeof setInterval>; // For continuous jump in flying mode
   mouseHolding = false; // Tracks if mouse button is held
-  spaceHolding = false; // Tracks if space is held
 
   // Track if we're in sandboxed mode (no pointer lock available)
   sandboxedMode = false;
@@ -281,7 +282,7 @@ export default class Control {
         }
         if (this.player.mode === Mode.walking) {
           // Jump: apply upward velocity once
-          if (!this.isJumping) {
+          if (!this.isJumping && this.downCollide) {
             this.velocity.y = 8; // Initial jump velocity
             this.isJumping = true;
             this.downCollide = false;
@@ -294,13 +295,6 @@ export default class Control {
         } else {
           // Flying mode: continuous upward movement
           this.velocity.y += this.player.speed;
-        }
-        // Enable continuous jumping in walking mode when space is held
-        if (this.player.mode === Mode.walking && !this.spaceHolding) {
-          this.spaceHolding = true;
-          this.jumpInterval = setInterval(() => {
-            this.setMovementHandler(e);
-          }, 10);
         }
         break;
       case "Shift":
@@ -373,9 +367,6 @@ export default class Control {
         if (this.player.mode === Mode.sneaking && !this.isJumping) {
           return;
         }
-        // Stop continuous jumping
-        this.jumpInterval && clearInterval(this.jumpInterval);
-        this.spaceHolding = false;
         if (this.player.mode === Mode.walking) {
           return; // Gravity handles downward movement
         }
@@ -717,6 +708,9 @@ export default class Control {
 
     this.holdingBlock =
       this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
+
+    // Update bag UI
+    this.bag?.updateSelection(this.holdingIndex);
   };
 
   /**
@@ -747,6 +741,9 @@ export default class Control {
 
       this.holdingBlock =
         this.holdingBlocks[this.holdingIndex] ?? BlockType.grass;
+
+      // Update bag UI
+      this.bag?.updateSelection(this.holdingIndex);
     }
   };
 
@@ -801,7 +798,8 @@ export default class Control {
         const deltaX = e.clientX - this.lastCameraMouseX;
         const deltaY = e.clientY - this.lastCameraMouseY;
 
-        this.cameraController.rotate(deltaX, deltaY);
+        // Invert deltas so dragging right moves world right (camera left)
+        this.cameraController.rotate(-deltaX, -deltaY);
 
         this.lastCameraMouseX = e.clientX;
         this.lastCameraMouseY = e.clientY;
@@ -1569,4 +1567,11 @@ export default class Control {
     // Store current time for next frame's delta calculation
     this.p2 = this.p1;
   };
+
+  /**
+   * Set the bag UI reference for updating selection
+   */
+  setBag(bag: Bag) {
+    this.bag = bag;
+  }
 }

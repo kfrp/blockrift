@@ -58,7 +58,20 @@ export async function handlePositionUpdate(
 
   const timestamp = Date.now();
 
-  // 1. Broadcast to realtime channel (for active players)
+  // 1. Store position in level-scoped hash (for retrieval on reconnect)
+  const levelPositionKey = `positions:${level}`;
+  const positionData = JSON.stringify({
+    x: position.x,
+    y: position.y,
+    z: position.z,
+    rx: rotation.x,
+    ry: rotation.y,
+    timestamp,
+  });
+
+  await redis.hSet(levelPositionKey, { [username]: positionData });
+
+  // 2. Broadcast to regional channel (for real-time updates to nearby players)
   const channel = `region:${level}:${regionX}:${regionZ}`;
   await realtime.send(channel, {
     type: "player-position",
@@ -76,24 +89,6 @@ export async function handlePositionUpdate(
     chunkZ,
     timestamp,
   });
-
-  // 2. Update Redis hash (for new subscribers)
-  const hashKey = `players:${level}:${regionX}:${regionZ}`;
-  const playerData = JSON.stringify({
-    x: position.x,
-    y: position.y,
-    z: position.z,
-    rx: rotation.x,
-    ry: rotation.y,
-    chunkX,
-    chunkZ,
-    timestamp,
-  });
-
-  await redis.hSet(hashKey, { [username]: playerData });
-
-  // TODO: Write to adjacent regions for players near boundaries
-  // TODO: Set up cron job to clean stale entries
 
   return { ok: true };
 }

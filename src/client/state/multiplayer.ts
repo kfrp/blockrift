@@ -146,6 +146,15 @@ export default class MultiplayerManager {
       // Recreate upvote manager with correct level
       this.upvoteManager = new UpvoteManager(level, this.playerModeManager);
 
+      // Apply spawn position to camera FIRST (before terrain generation)
+      if (data.spawnPosition) {
+        this.camera.position.set(
+          data.spawnPosition.x,
+          data.spawnPosition.y,
+          data.spawnPosition.z
+        );
+      }
+
       // Process terrain seeds
       if (data.terrainSeeds && data.terrainSeeds.seed !== undefined) {
         this.terrain.setSeeds(data.terrainSeeds.seed);
@@ -161,16 +170,8 @@ export default class MultiplayerManager {
 
       // Create player entities for other players (never for self in any mode)
       if (data.players && Array.isArray(data.players)) {
-        console.log(
-          `[Multiplayer] Received ${data.players.length} players from server:`,
-          data.players.map((p: any) => p.username)
-        );
         for (const playerData of data.players) {
           if (playerData.username !== data.username) {
-            console.log(
-              `[Multiplayer] Creating player entity for ${playerData.username} at`,
-              playerData.position
-            );
             const position = new THREE.Vector3(
               playerData.position.x,
               playerData.position.y,
@@ -188,24 +189,11 @@ export default class MultiplayerManager {
                 player.renderer.setTargetState(position, rotation);
               }
             }
-          } else {
-            console.log(`[Multiplayer] Skipping self (${playerData.username})`);
           }
         }
-      } else {
-        console.log("[Multiplayer] No players data received from server");
       }
 
       this.chunkStateManager.setConnection(data.username, level);
-
-      // Apply spawn position to camera
-      if (data.spawnPosition) {
-        this.camera.position.set(
-          data.spawnPosition.x,
-          data.spawnPosition.y,
-          data.spawnPosition.z
-        );
-      }
 
       // Subscribe to regional channels in both modes
       if (data.spawnPosition) {
@@ -256,6 +244,38 @@ export default class MultiplayerManager {
       this.cleanupInterval = window.setInterval(() => {
         this.cleanupStalePlayers();
       }, 5000);
+
+      // Set up beforeunload handler to save position on page close
+      window.addEventListener("beforeunload", () => {
+        // Use sendBeacon for reliable delivery during page unload
+        const direction = new THREE.Vector3();
+        this.camera.getWorldDirection(direction);
+        const yaw = Math.atan2(direction.x, direction.z);
+
+        const positionData = JSON.stringify({
+          username: this.username,
+          level: this.chunkStateManager.getLevel(),
+          position: {
+            x: Math.round(this.camera.position.x * 100) / 100,
+            y: Math.round(this.camera.position.y * 100) / 100,
+            z: Math.round(this.camera.position.z * 100) / 100,
+          },
+          rotation: {
+            x: this.camera.rotation.x,
+            y: yaw,
+          },
+        });
+
+        // sendBeacon is more reliable than fetch during page unload
+        navigator.sendBeacon(window.ENDPOINTS.POSITION_API, positionData);
+
+        // Also send disconnect
+        const disconnectData = JSON.stringify({
+          username: this.username,
+          level: this.chunkStateManager.getLevel(),
+        });
+        navigator.sendBeacon(window.ENDPOINTS.DISCONNECT_API, disconnectData);
+      });
     } catch (error) {
       console.error("MultiplayerManager: Failed to connect", error);
       throw error;
@@ -278,6 +298,31 @@ export default class MultiplayerManager {
 
     if (this.username) {
       try {
+        // Send final position update before disconnecting
+        const direction = new THREE.Vector3();
+        this.camera.getWorldDirection(direction);
+        const yaw = Math.atan2(direction.x, direction.z);
+        const currentRotation = {
+          x: this.camera.rotation.x,
+          y: yaw,
+        };
+
+        await fetch(window.ENDPOINTS.POSITION_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: this.username,
+            level: this.chunkStateManager.getLevel(),
+            position: {
+              x: Math.round(this.camera.position.x * 100) / 100,
+              y: Math.round(this.camera.position.y * 100) / 100,
+              z: Math.round(this.camera.position.z * 100) / 100,
+            },
+            rotation: currentRotation,
+          }),
+        });
+
+        // Now send disconnect
         await fetch(window.ENDPOINTS.DISCONNECT_API, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -723,25 +768,13 @@ export default class MultiplayerManager {
     position: THREE.Vector3
   ): PlayerEntity | undefined {
     if (username === this.username) return;
-    console.log(
-      `[Multiplayer] Creating PlayerEntityRenderer for ${username} at`,
-      position,
-      `(group will be at y=${position.y - 1.8})`
-    );
+
     const renderer = new PlayerEntityRenderer(username, position);
-    console.log(
-      `[Multiplayer] Adding renderer.group to scene. Group position:`,
-      renderer.group.position,
-      `Children count:`,
-      renderer.group.children.length
-    );
+
     this.scene.add(renderer.group);
     const playerEntity: PlayerEntity = { username, renderer };
     this.players.set(username, playerEntity);
-    console.log(
-      `[Multiplayer] Player entity created. Total players:`,
-      this.players.size
-    );
+
     return playerEntity;
   }
 

@@ -315,21 +315,25 @@ app.post(CONNECT_API, async (req, res) => {
  * Disconnect endpoint
  */
 app.post(DISCONNECT_API, async (req, res) => {
+  if (!req.body) {
+    return res.status(400).json({ error: "Missing request body" });
+  }
+
   const { username, level } = req.body as DisconnectRequest;
 
-  // Retrieve player's current position from connectedClients map
-  const client = connectedClients.get(username);
-  if (client && client.position) {
-    // Serialize position to JSON string
-    const positionJson = JSON.stringify(client.position);
-
-    // Store in lastKnownPosition field of player hash
-    const playerKey = `player:${username}:${level}`;
-    await redisStore.hSet(playerKey, { lastKnownPosition: positionJson });
-  }
+  // Position is already being saved by position updates to positions:{level} hash
+  // No need to save again on disconnect since position updates handle persistence
+  console.log(`[Disconnect] Player ${username} disconnecting from ${level}`);
 
   // Remove from active players set
   await removeActivePlayer(username, level);
+
+  // Remove from level-scoped position hash
+  const levelPositionKey = `positions:${level}`;
+  await redisStore.hDel(levelPositionKey, [username]);
+  console.log(
+    `[Disconnect] Removed ${username} from position hash: ${levelPositionKey}`
+  );
 
   // Remove client from connected clients
   connectedClients.delete(username);
@@ -351,8 +355,11 @@ app.post(DISCONNECT_API, async (req, res) => {
  * Position update endpoint
  */
 app.post(POSITION_API, async (req, res) => {
-  const { username, level, position, rotation } = req.body;
+  if (!req.body) {
+    return res.status(400).json({ error: "Missing request body" });
+  }
 
+  const { username, level, position, rotation } = req.body;
   try {
     const response = await handlePositionUpdate(
       username,
