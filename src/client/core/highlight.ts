@@ -18,7 +18,7 @@ export default class BlockHighlight {
 
     // Raycaster for detecting which block is under mouse
     this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 8; // Maximum reach distance (same as control.ts)
+    this.raycaster.far = 12; // Maximum reach distance (same as control.ts)
 
     // Track mouse position
     this.setupMouseTracking();

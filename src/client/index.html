@@ -106,19 +106,19 @@
 
       .bag {
         position: fixed;
-        left: 50%;
-        top: 100%;
-        transform: translate(-50%, -100%);
-        width: fit-content;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
         background-color: hsla(0, 0%, 11%, 0.5);
-        height: 62px;
+        display: flex;
+        flex-direction: column;
       }
 
       .item {
-        display: inline-block;
+        display: block;
         width: 56px;
         height: 56px;
-        margin: 1px;
+        margin: 0;
         border: 2px solid rgb(141, 139, 139);
       }
 
